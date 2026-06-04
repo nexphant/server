@@ -1,0 +1,21 @@
+{
+    "name": "nexph/server",
+    "description": "HTTP server for Nexph framework",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Nexph\\Server\\": "src/"
+        },
+        "files": ["src/helpers.php"]
+    },
+    "require": {
+        "php": ">=8.1",
+        "ext-pcntl": "*",
+        "ext-posix": "*"
+    },
+    "suggest": {
+        "ext-zlib": "For compression middleware",
+        "ext-redis": "For Redis session storage"
+    }
+}
