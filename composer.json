@@ -12,10 +12,13 @@
     "require": {
         "php": ">=8.1",
         "ext-pcntl": "*",
-        "ext-posix": "*"
+        "ext-posix": "*",
+        "nexph/runtime": "^0.1",
+        "nexph/support": "^0.1"
     },
     "suggest": {
         "ext-zlib": "For compression middleware",
-        "ext-redis": "For Redis session storage"
+        "ext-redis": "For Redis session storage",
+        "nexph/database": "For database integration"
     }
 }
