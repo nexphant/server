@@ -7,7 +7,7 @@
         "psr-4": {
             "Nexph\\Server\\": "src/"
         },
-        "files": ["src/helpers.php"]
+        "files": ["src/helpers.php", "src/legacy_aliases.php"]
     },
     "require": {
         "php": ">=8.1",
