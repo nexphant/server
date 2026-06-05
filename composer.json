@@ -13,6 +13,7 @@
         "php": ">=8.1",
         "ext-pcntl": "*",
         "ext-posix": "*",
+        "nexph/core": "^0.1",
         "nexph/runtime": "^0.1",
         "nexph/support": "^0.1"
     },
@@ -22,3 +23,4 @@
         "nexph/database": "For database integration"
     }
 }
+
