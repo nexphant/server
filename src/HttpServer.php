@@ -10,6 +10,8 @@
  */
 namespace Nexph\Server;
 
+use Nexph\Server\Server\Connection;
+use Nexph\Server\Server\BufferPool;
 use Nexph\Runtime\MemoryMonitor;
 use Nexph\Runtime\ResponseCache;
 

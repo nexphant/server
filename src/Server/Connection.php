@@ -8,7 +8,9 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace Nexph\Server;
+namespace Nexph\Server\Server;
+
+use Nexph\Server\BufferSlab;
 
 class Connection {
     private $socket;
