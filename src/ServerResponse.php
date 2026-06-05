@@ -12,15 +12,7 @@ namespace Nexph\Server;
 
 use Nexph\Runtime\JsonSerializer;
 
-class ServerResponse implements Resettable, Cleanable {
-    private int $status = 200;
-    private array $headers = [];
-    private string $body = '';
-    private ?string $raw = null;
-    private ?string $cacheKey = null;
-    private bool $sent = false;
-    private array $cookies = [];
-
+class ServerResponse extends \Nexph\Response {
     public function status(int $code): self {
         $this->status = $code;
         return $this;

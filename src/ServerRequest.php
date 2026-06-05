@@ -10,22 +10,7 @@
  */
 namespace Nexph\Server;
 
-use Nexph\Runtime\JsonSerializer;
-
-class ServerRequest implements Resettable, Cleanable {
-    public string $method = '';
-    public string $uri = '';
-    public string $path = '';
-    public string $queryString = '';
-    public array $query = [];
-    public array $headers = [];
-    public string $body = '';
-    public array $parsedBody = [];
-    public array $cookies = [];
-    public string $remoteAddr = '';
-    public int $remotePort = 0;
-    public float $time = 0.0;
-
+class ServerRequest extends \Nexph\Request {
     private ?Server\Connection $connection = null;
     private array $attributes = [];
 
