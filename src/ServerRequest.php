@@ -26,16 +26,16 @@ class ServerRequest implements Resettable, Cleanable {
     public int $remotePort = 0;
     public float $time = 0.0;
 
-    private ?Connection $connection = null;
+    private ?Server\Connection $connection = null;
     private array $attributes = [];
 
-    public function __construct(?array $parsed = null, ?Connection $conn = null) {
+    public function __construct(?array $parsed = null, ?Server\Connection $conn = null) {
         if ($parsed !== null && $conn !== null) {
             $this->hydrate($parsed, $conn);
         }
     }
 
-    public function hydrate(array $parsed, Connection $conn): void {
+    public function hydrate(array $parsed, Server\Connection $conn): void {
         $this->connection = $conn;
         $this->method = $parsed['method'];
         $this->uri = $parsed['uri'];
