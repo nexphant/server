@@ -5,7 +5,8 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Nexph\\Server\\": "src/"
+            "Nexph\\Server\\": "src/",
+            "Nexph\\": "src/Foundation/"
         },
         "files": ["src/helpers.php"]
     },
