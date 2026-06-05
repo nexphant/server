@@ -204,17 +204,17 @@ class HttpServer {
         $this->memoryMonitor = new MemoryMonitor();
         $this->objectTracker = new ObjectTracker($this->objectTrackingEnabled);
         $this->responsePool = new ObjectPool(
-            fn() => new ServerResponse(),
+            fn() => new Response(),
             $config['response_pool_size'] ?? 2048,
-            fn(ServerResponse $response) => $response->reset(),
+            fn(Response $response) => $response->reset(),
             'response',
             $this->objectTracker,
             $this->poolSafetyEnabled
         );
         $this->requestPool = new ObjectPool(
-            fn() => new ServerRequest(),
+            fn() => new Request(),
             $config['request_pool_size'] ?? 2048,
-            fn(ServerRequest $request) => $request->reset(),
+            fn(Request $request) => $request->reset(),
             'request',
             $this->objectTracker,
             $this->poolSafetyEnabled
