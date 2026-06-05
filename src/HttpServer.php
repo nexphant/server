@@ -1456,8 +1456,8 @@ class HttpServer {
             $ownerId = $request->getAttribute('__owner_id');
             if ($ownerId) {
                 // Finish in-flight tracking
-                if (class_exists('\Nexph\Runtime\Drain\DrainController')) {
-                    \Nexph\Runtime\Drain\DrainController::instance()->finishInFlight($ownerId);
+                if (class_exists('\Nexph\Core\Drain\DrainController')) {
+                    \Nexph\Core\Drain\DrainController::instance()->finishInFlight($ownerId);
                 }
                 \Nexph\Runtime\Runtime::owners()->close($ownerId, 'request_completed');
             }
@@ -1601,15 +1601,15 @@ class HttpServer {
         // Track request with owner type 'request'
         if (class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
             $owner = \Nexph\Runtime\Runtime::owners()->open(
-                \Nexph\Runtime\Ownership\OwnerType::REQUEST,
+                \Nexph\Core\Ownership\OwnerType::REQUEST,
                 null,
                 ['method' => $parsed['method'] ?? 'GET', 'path' => $parsed['path'] ?? '/']
             );
             $request->setAttribute('__owner_id', $owner->id()->toString());
             
             // Track in-flight
-            if (class_exists('\Nexph\Runtime\Drain\DrainController')) {
-                \Nexph\Runtime\Drain\DrainController::instance()->trackInFlight($owner->id());
+            if (class_exists('\Nexph\Core\Drain\DrainController')) {
+                \Nexph\Core\Drain\DrainController::instance()->trackInFlight($owner->id());
             }
             
             // Set context for request
@@ -1816,8 +1816,8 @@ class HttpServer {
         $this->pauseAccepting();
         
         // Integrate with DrainController
-        if (class_exists('\Nexph\Runtime\Drain\DrainController')) {
-            \Nexph\Runtime\Drain\DrainController::instance()->stopAccepting();
+        if (class_exists('\Nexph\Core\Drain\DrainController')) {
+            \Nexph\Core\Drain\DrainController::instance()->stopAccepting();
         }
 
         foreach ($this->connections as $conn) {

@@ -50,9 +50,9 @@ class Connection {
         stream_set_blocking($socket, false);
         
         // Track socket resource (skip if not object in PHP 8.0)
-        if (class_exists('\Nexph\Runtime\Resource\ResourceRegistry') && class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
+        if (class_exists('\Nexph\Core\Resource\ResourceRegistry') && class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
             if (is_object($socket)) {
-                \Nexph\Runtime\Resource\ResourceRegistry::instance()->track(
+                \Nexph\Core\Resource\ResourceRegistry::instance()->track(
                     $socket,
                     'socket',
                     \Nexph\Runtime\Runtime::context()->ownerId()

@@ -1,6 +1,5 @@
 <?php
 namespace Nexph\Server;
 
-class Response extends ServerResponse
-{
-}
+class Response extends ServerResponse {}
+

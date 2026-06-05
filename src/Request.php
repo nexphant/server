@@ -1,6 +1,5 @@
 <?php
 namespace Nexph\Server;
 
-class Request extends ServerRequest
-{
-}
+class Request extends ServerRequest {}
+
