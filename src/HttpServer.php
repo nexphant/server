@@ -1336,7 +1336,24 @@ class HttpServer {
 
     private function dispatchRequest(ServerRequest $request, ServerResponse $response, Connection $conn): void {
         try {
-            // Skip middleware loop entirely if empty
+            if ($this->performanceMode && empty($this->middleware)) {
+                if ($this->requestHandler) {
+                    $result = ($this->requestHandler)($request, $response);
+                    if (!($result instanceof \Generator) && ($response->isSent() || $request->getAttribute('__stream_started', false))) {
+                        return;
+                    }
+                    if ($result instanceof \Generator) {
+                        Coroutine::create($this->resumeHandler($result, $request, $response, $conn));
+                        return;
+                    }
+                } else {
+                    $response->notFound();
+                }
+                $this->finishHttpRequest($request, $response);
+                $this->sendResponse($conn, $response);
+                return;
+            }
+
             if (!empty($this->middleware)) {
                 foreach ($this->middleware as $middleware) {
                     $result = $middleware($request, $response);
@@ -1352,7 +1369,6 @@ class HttpServer {
                 }
             }
 
-            // Run handler
             if ($this->requestHandler) {
                 $result = ($this->requestHandler)($request, $response);
                 if ($result instanceof \Generator) {

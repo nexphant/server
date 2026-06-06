@@ -107,11 +107,15 @@ class Router {
             $route = $this->exactRoutes[$method][$path];
             if (is_callable($route['handler']) && empty($route['middleware'])) {
                 try {
-                    $dummy = new class {
-                        public function __call($name, $args) { return null; }
-                        public function __get($name) { return null; }
+                    $dummy = new class extends ServerRequest {
+                        public function __call($name, $args) { return $args[0] ?? null; }
+                        public function __get($name) { return ''; }
+                        public function getAttribute(string $name, mixed $default = null): mixed { return $default; }
                     };
-                    $result = ($route['handler'])($dummy, $dummy, []);
+                    $dummyResp = new class extends ServerResponse {
+                        public function __call($name, $args) { return $this; }
+                    };
+                    $result = ($route['handler'])($dummy, $dummyResp, []);
                     if (is_array($result)) {
                         $json = \Nexph\Runtime\JsonSerializer::encode($result);
                         $prebuilt = \Nexph\Server\RawResponse::json($json);
@@ -193,7 +197,10 @@ class Router {
                 return;
             }
             if (empty($route['middleware'])) {
-                ($route['handler'])($request, $response, []);
+                $result = ($route['handler'])($request, $response, []);
+                if ($result !== null && !($result instanceof \Generator)) {
+                    return;
+                }
                 return;
             }
         }
