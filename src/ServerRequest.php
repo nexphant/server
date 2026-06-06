@@ -31,18 +31,18 @@ class ServerRequest extends \Nexph\Request {
         $this->uri = $parsed['uri'];
         $this->path = $parsed['path'];
         $this->queryString = $parsed['query_string'];
-        $this->query = $parsed['query'];
+        $this->query = [];
         $this->headers = $parsed['headers'];
         $this->body = $parsed['body'];
-        $this->parsedBody = $parsed['parsed_body'];
-        $this->cookies = $parsed['cookies'];
+        $this->parsedBody = [];
+        $this->cookies = [];
         $this->remoteAddr = $conn->getRemoteAddr();
         $this->remotePort = $conn->getRemotePort();
         $this->time = microtime(true);
         $this->attributes = [];
-        $this->queryParsed = false;
-        $this->cookiesParsed = false;
-        $this->bodyParsed = false;
+        $this->queryParsed = $parsed['query_string'] === '';
+        $this->cookiesParsed = !isset($parsed['headers']['cookie']);
+        $this->bodyParsed = $parsed['body'] === '';
         $this->rawCookie = $this->headers['cookie'] ?? '';
         $this->contentType = $this->headers['content-type'] ?? '';
     }

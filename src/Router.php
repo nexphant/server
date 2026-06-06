@@ -10,47 +10,68 @@
  */
 namespace Nexph\Server;
 
+class Route {
+    public function __construct(
+        private Router $router,
+        private string $method,
+        private string $path
+    ) {}
+
+    public function fast(): self {
+        $this->router->markFast($this->method, $this->path);
+        return $this;
+    }
+
+    public function cacheJson(): self {
+        $this->router->markCacheJson($this->method, $this->path);
+        return $this;
+    }
+}
+
 class Router {
     private array $routes = [];
     private array $exactRoutes = [];
+    private array $fastRoutes = [];
     private array $middleware = [];
     private string $prefix = '';
     private bool $compiled = false;
     private array $compiledRegex = [];
     private array $compiledHandlers = [];
+    private ?Route $lastRoute = null;
 
-    public function get(string $path, callable $handler, array $middleware = []): self {
+    public function get(string $path, callable $handler, array $middleware = []): Route {
         return $this->add('GET', $path, $handler, $middleware);
     }
 
-    public function post(string $path, callable $handler, array $middleware = []): self {
+    public function post(string $path, callable $handler, array $middleware = []): Route {
         return $this->add('POST', $path, $handler, $middleware);
     }
 
-    public function put(string $path, callable $handler, array $middleware = []): self {
+    public function put(string $path, callable $handler, array $middleware = []): Route {
         return $this->add('PUT', $path, $handler, $middleware);
     }
 
-    public function patch(string $path, callable $handler, array $middleware = []): self {
+    public function patch(string $path, callable $handler, array $middleware = []): Route {
         return $this->add('PATCH', $path, $handler, $middleware);
     }
 
-    public function delete(string $path, callable $handler, array $middleware = []): self {
+    public function delete(string $path, callable $handler, array $middleware = []): Route {
         return $this->add('DELETE', $path, $handler, $middleware);
     }
 
-    public function options(string $path, callable $handler, array $middleware = []): self {
+    public function options(string $path, callable $handler, array $middleware = []): Route {
         return $this->add('OPTIONS', $path, $handler, $middleware);
     }
 
-    public function any(string $path, callable $handler, array $middleware = []): self {
+    public function any(string $path, callable $handler, array $middleware = []): Route {
+        $last = null;
         foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as $method) {
-            $this->add($method, $path, $handler, $middleware);
+            $last = $this->add($method, $path, $handler, $middleware);
         }
-        return $this;
+        return $last;
     }
 
-    public function add(string $method, string $path, callable $handler, array $middleware = []): self {
+    public function add(string $method, string $path, callable $handler, array $middleware = []): Route {
         $method = strtoupper($method);
         $fullPath = $this->prefix . $path;
 
@@ -59,6 +80,8 @@ class Router {
             'path' => $fullPath,
             'handler' => $handler,
             'middleware' => array_merge($this->middleware, $middleware),
+            'fast' => false,
+            'cache_json' => false,
         ];
         $this->routes[] = $route;
         $this->compiled = false;
@@ -67,7 +90,40 @@ class Router {
             $this->exactRoutes[$method][$fullPath] = $route;
         }
 
-        return $this;
+        $this->lastRoute = new Route($this, $method, $fullPath);
+        return $this->lastRoute;
+    }
+
+    public function markFast(string $method, string $path): void {
+        if (isset($this->exactRoutes[$method][$path])) {
+            $this->exactRoutes[$method][$path]['fast'] = true;
+            $this->fastRoutes[$method][$path] = $this->exactRoutes[$method][$path];
+        }
+    }
+
+    public function markCacheJson(string $method, string $path): void {
+        if (isset($this->exactRoutes[$method][$path])) {
+            $this->exactRoutes[$method][$path]['cache_json'] = true;
+            $route = $this->exactRoutes[$method][$path];
+            if (is_callable($route['handler']) && empty($route['middleware'])) {
+                try {
+                    $dummy = new class {
+                        public function __call($name, $args) { return null; }
+                        public function __get($name) { return null; }
+                    };
+                    $result = ($route['handler'])($dummy, $dummy, []);
+                    if (is_array($result)) {
+                        $json = \Nexph\Runtime\JsonSerializer::encode($result);
+                        $prebuilt = \Nexph\Server\RawResponse::json($json);
+                        $this->exactRoutes[$method][$path]['prebuilt'] = $prebuilt;
+                        if (isset($this->fastRoutes[$method][$path])) {
+                            $this->fastRoutes[$method][$path]['prebuilt'] = $prebuilt;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                }
+            }
+        }
     }
 
     public function group(string $prefix, callable $callback): self {
@@ -89,17 +145,17 @@ class Router {
     }
 
     public function match(string $method, string $path): ?array {
-        // O(1) exact match
         if (isset($this->exactRoutes[$method][$path])) {
             $route = $this->exactRoutes[$method][$path];
             return [
                 'handler' => $route['handler'],
                 'middleware' => $route['middleware'],
                 'params' => [],
+                'fast' => $route['fast'] ?? false,
+                'cache_json' => $route['cache_json'] ?? false,
             ];
         }
 
-        // Compiled combined regex
         $this->compile();
 
         if (isset($this->compiledRegex[$method])) {
@@ -116,6 +172,8 @@ class Router {
                     'handler' => $route['handler'],
                     'middleware' => $route['middleware'],
                     'params' => $params,
+                    'fast' => false,
+                    'cache_json' => false,
                 ];
             }
         }
@@ -128,6 +186,18 @@ class Router {
     }
 
     public function dispatchSync(ServerRequest $request, ServerResponse $response): void {
+        if (isset($this->fastRoutes[$request->method][$request->path])) {
+            $route = $this->fastRoutes[$request->method][$request->path];
+            if (isset($route['prebuilt'])) {
+                $response->rawHttp($route['prebuilt']->http);
+                return;
+            }
+            if (empty($route['middleware'])) {
+                ($route['handler'])($request, $response, []);
+                return;
+            }
+        }
+
         $route = $this->match($request->method, $request->path);
 
         if (!$route) {

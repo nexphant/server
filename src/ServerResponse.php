@@ -115,7 +115,6 @@ class ServerResponse extends \Nexph\Response {
             return $this->raw;
         }
 
-        // Fast path: simple JSON 200 with no cookies
         if ($this->status === 200 && empty($this->cookies) && isset($this->headers['Content-Type']) && $this->headers['Content-Type'] === 'application/json' && count($this->headers) === 1) {
             static $jsonPrefix200KA = "";
             static $jsonPrefix200Close = "";
