@@ -102,34 +102,9 @@ class HttpParser {
             $body = substr($raw, $bodyStart, $contentLength);
         }
 
-        // Parse query (lazy)
         $query = [];
-        if ($queryString !== '') {
-            parse_str($queryString, $query);
-        }
-
-        // Parse body only when needed
         $parsedBody = [];
-        if ($contentLength > 0 && $contentType !== '') {
-            if (str_contains($contentType, 'application/json')) {
-                $parsedBody = json_decode($body, true) ?? [];
-            } elseif (str_contains($contentType, 'application/x-www-form-urlencoded')) {
-                parse_str($body, $parsedBody);
-            }
-        }
-
-        // Parse cookies
         $cookies = [];
-        if ($cookie !== '') {
-            $pairs = explode(';', $cookie);
-            foreach ($pairs as $pair) {
-                $pair = trim($pair);
-                $eq = strpos($pair, '=');
-                if ($eq !== false) {
-                    $cookies[substr($pair, 0, $eq)] = urldecode(substr($pair, $eq + 1));
-                }
-            }
-        }
 
         return [
             'method' => $method,

@@ -13,6 +13,11 @@ namespace Nexph\Server;
 class ServerRequest extends \Nexph\Request {
     private ?Server\Connection $connection = null;
     private array $attributes = [];
+    private bool $queryParsed = false;
+    private bool $cookiesParsed = false;
+    private bool $bodyParsed = false;
+    private string $rawCookie = '';
+    private string $contentType = '';
 
     public function __construct(?array $parsed = null, ?Server\Connection $conn = null) {
         if ($parsed !== null && $conn !== null) {
@@ -35,6 +40,11 @@ class ServerRequest extends \Nexph\Request {
         $this->remotePort = $conn->getRemotePort();
         $this->time = microtime(true);
         $this->attributes = [];
+        $this->queryParsed = false;
+        $this->cookiesParsed = false;
+        $this->bodyParsed = false;
+        $this->rawCookie = $this->headers['cookie'] ?? '';
+        $this->contentType = $this->headers['content-type'] ?? '';
     }
 
     public function header(string $name, ?string $default = null): ?string {
@@ -42,14 +52,37 @@ class ServerRequest extends \Nexph\Request {
     }
 
     public function query(string $name, mixed $default = null): mixed {
+        if (!$this->queryParsed && $this->queryString !== '') {
+            parse_str($this->queryString, $this->query);
+            $this->queryParsed = true;
+        }
         return $this->query[$name] ?? $default;
     }
 
     public function post(string $name, mixed $default = null): mixed {
+        if (!$this->bodyParsed && $this->body !== '' && $this->contentType !== '') {
+            if (str_contains($this->contentType, 'application/json')) {
+                $this->parsedBody = json_decode($this->body, true) ?? [];
+            } elseif (str_contains($this->contentType, 'application/x-www-form-urlencoded')) {
+                parse_str($this->body, $this->parsedBody);
+            }
+            $this->bodyParsed = true;
+        }
         return $this->parsedBody[$name] ?? $default;
     }
 
     public function cookie(string $name, ?string $default = null): ?string {
+        if (!$this->cookiesParsed && $this->rawCookie !== '') {
+            $pairs = explode(';', $this->rawCookie);
+            foreach ($pairs as $pair) {
+                $pair = trim($pair);
+                $eq = strpos($pair, '=');
+                if ($eq !== false) {
+                    $this->cookies[substr($pair, 0, $eq)] = urldecode(substr($pair, $eq + 1));
+                }
+            }
+            $this->cookiesParsed = true;
+        }
         return $this->cookies[$name] ?? $default;
     }
 
@@ -58,10 +91,30 @@ class ServerRequest extends \Nexph\Request {
     }
 
     public function all(): array {
+        if (!$this->queryParsed && $this->queryString !== '') {
+            parse_str($this->queryString, $this->query);
+            $this->queryParsed = true;
+        }
+        if (!$this->bodyParsed && $this->body !== '' && $this->contentType !== '') {
+            if (str_contains($this->contentType, 'application/json')) {
+                $this->parsedBody = json_decode($this->body, true) ?? [];
+            } elseif (str_contains($this->contentType, 'application/x-www-form-urlencoded')) {
+                parse_str($this->body, $this->parsedBody);
+            }
+            $this->bodyParsed = true;
+        }
         return array_merge($this->query, $this->parsedBody);
     }
 
     public function json(): array {
+        if (!$this->bodyParsed && $this->body !== '' && $this->contentType !== '') {
+            if (str_contains($this->contentType, 'application/json')) {
+                $this->parsedBody = json_decode($this->body, true) ?? [];
+            } elseif (str_contains($this->contentType, 'application/x-www-form-urlencoded')) {
+                parse_str($this->body, $this->parsedBody);
+            }
+            $this->bodyParsed = true;
+        }
         return $this->parsedBody;
     }
 
@@ -118,6 +171,11 @@ class ServerRequest extends \Nexph\Request {
         $this->time = 0.0;
         $this->connection = null;
         $this->attributes = [];
+        $this->queryParsed = false;
+        $this->cookiesParsed = false;
+        $this->bodyParsed = false;
+        $this->rawCookie = '';
+        $this->contentType = '';
     }
 }
 

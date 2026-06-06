@@ -124,6 +124,32 @@ class Router {
     }
 
     public function dispatch(ServerRequest $request, ServerResponse $response): \Generator {
+        return $this->dispatchAsync($request, $response);
+    }
+
+    public function dispatchSync(ServerRequest $request, ServerResponse $response): void {
+        $route = $this->match($request->method, $request->path);
+
+        if (!$route) {
+            $response->notFound();
+            return;
+        }
+
+        foreach ($route['params'] as $key => $value) {
+            $request->setAttribute($key, $value);
+        }
+
+        foreach ($route['middleware'] as $middleware) {
+            $result = $middleware($request, $response, $route['params']);
+            if ($result === false || $response->isSent()) {
+                return;
+            }
+        }
+
+        ($route['handler'])($request, $response, $route['params']);
+    }
+
+    public function dispatchAsync(ServerRequest $request, ServerResponse $response): \Generator {
         $route = $this->match($request->method, $request->path);
 
         if (!$route) {
