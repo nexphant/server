@@ -58,20 +58,21 @@ class NativeSocketDriver implements SocketDriverInterface
 
     public function read(mixed $conn): ?string
     {
-        $data = @socket_read($conn, 8192, PHP_BINARY_READ);
+        $buffer = '';
+        $bytes = @socket_recv($conn, $buffer, 8192, MSG_DONTWAIT);
         
-        if ($data === false || $data === '') {
+        if ($bytes === false || $bytes === 0) {
             return null;
         }
         
-        return $data;
+        return $buffer;
     }
 
     public function write(mixed $conn, string $data): int|false
     {
-        $written = @socket_write($conn, $data);
+        $bytes = @socket_send($conn, $data, strlen($data), MSG_DONTWAIT);
         
-        return $written === false ? false : $written;
+        return $bytes === false ? false : $bytes;
     }
 
     public function close(mixed $conn): void
