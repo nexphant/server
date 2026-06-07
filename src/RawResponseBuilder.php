@@ -32,4 +32,8 @@ class RawResponseBuilder {
         $headers['Content-Type'] = $headers['Content-Type'] ?? 'text/plain; charset=utf-8';
         return self::build($status, $headers, $body);
     }
+
+    public static function raw(int $status, string $body, array $headers = []): string {
+        return self::build($status, $headers, $body);
+    }
 }

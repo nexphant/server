@@ -2789,4 +2789,34 @@ class HttpServer {
         $this->fastPath->register($method, $path, $rawResponse);
         return $this;
     }
+
+    public function fastCachedJson(string $method, string $path, callable $handler, int $ttl = 1): self {
+        $cacheKey = "fastpath:{$method}:{$path}";
+        $cached = apcu_fetch($cacheKey, $success);
+        if ($success) {
+            $this->fastPath->register($method, $path, $cached);
+        } else {
+            $data = $handler();
+            $raw = RawResponseBuilder::json(200, $data);
+            apcu_store($cacheKey, $raw, $ttl);
+            $this->fastPath->register($method, $path, $raw);
+        }
+        return $this;
+    }
+
+    public function fastCompressedJson(string $method, string $path, array|string $payload, int $status = 200, array $headers = []): self {
+        if (!extension_loaded('zlib')) {
+            return $this->fastJson($method, $path, $payload, $status, $headers);
+        }
+        
+        $json = is_string($payload) ? $payload : json_encode($payload);
+        $compressed = gzencode($json, 6);
+        
+        $headers['Content-Encoding'] = 'gzip';
+        $headers['Vary'] = 'Accept-Encoding';
+        
+        $raw = RawResponseBuilder::raw($status, $compressed, $headers);
+        $this->fastPath->register($method, $path, $raw);
+        return $this;
+    }
 }
