@@ -31,6 +31,10 @@ class EventLoop {
     private int $tickCount = 0;
     private float $lastTickDurationMs = 0.0;
     private ?\Nexph\Runtime\EventLoop\EventLoopInterface $backend = null;
+    private ?int $deferredTimerId = null;
+    private int $maxReadCallbacksPerTick = 64;
+    private int $maxWriteCallbacksPerTick = 64;
+    private int $maxDeferredPerTick = 256;
 
     public function __construct(?\Nexph\Runtime\EventLoop\EventLoopInterface $backend = null) {
         $this->backend = $backend;
@@ -113,6 +117,13 @@ class EventLoop {
 
         $this->deferred[] = $callback;
         $this->deferredCount++;
+
+        if ($this->backend && $this->deferredTimerId === null && $this->running) {
+            $this->deferredTimerId = $this->backend->timer(0.001, function() {
+                $this->processDeferredQueue();
+            }, true);
+        }
+
         return true;
     }
 
@@ -129,9 +140,6 @@ class EventLoop {
     public function run(): void {
         if ($this->backend) {
             $this->running = true;
-            $this->backend->timer(0.001, function() {
-                $this->processDeferredQueue();
-            }, true);
             $this->backend->run();
             $this->running = false;
             return;
@@ -152,15 +160,31 @@ class EventLoop {
     }
 
     private function processDeferredQueue(): void {
-        $deferredEnd = $this->deferredHead + $this->deferredCount;
+        if ($this->deferredCount === 0) {
+            if ($this->backend && $this->deferredTimerId !== null) {
+                $this->backend->cancelTimer($this->deferredTimerId);
+                $this->deferredTimerId = null;
+            }
+            return;
+        }
+
+        $deferredEnd = $this->deferredHead + min($this->deferredCount, $this->maxDeferredPerTick);
         $processed = 0;
         for ($i = $this->deferredHead; $i < $deferredEnd; $i++) {
             ($this->deferred[$i])();
             unset($this->deferred[$i]);
             $processed++;
         }
-        $this->deferredHead = $deferredEnd;
+        $this->deferredHead += $processed;
         $this->deferredCount -= $processed;
+
+        if ($this->deferredCount === 0) {
+            if ($this->backend && $this->deferredTimerId !== null) {
+                $this->backend->cancelTimer($this->deferredTimerId);
+                $this->deferredTimerId = null;
+            }
+        }
+
         if ($this->deferredHead > 64 && $this->deferredHead * 2 >= count($this->deferred) + $this->deferredHead) {
             $this->deferred = array_values(array_slice($this->deferred, $this->deferredHead, null, true));
             $this->deferredHead = 0;
@@ -210,7 +234,9 @@ class EventLoop {
         }
 
         // Handle readable
+        $readCount = 0;
         foreach ($read as $stream) {
+            if ($readCount++ >= $this->maxReadCallbacksPerTick) break;
             $id = (int) $stream;
             if (isset($this->readers[$id])) {
                 ($this->readers[$id]['callback'])($stream);
@@ -218,7 +244,9 @@ class EventLoop {
         }
 
         // Handle writable
+        $writeCount = 0;
         foreach ($write as $stream) {
+            if ($writeCount++ >= $this->maxWriteCallbacksPerTick) break;
             $id = (int) $stream;
             if (isset($this->writers[$id])) {
                 ($this->writers[$id]['callback'])($stream);
