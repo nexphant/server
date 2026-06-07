@@ -172,7 +172,9 @@ class EventLoop {
         $this->tickCount++;
         $this->now = microtime(true);
 
-        $this->processDeferredQueue();
+        if ($this->deferredCount > 0) {
+            $this->processDeferredQueue();
+        }
 
         $this->processTimers();
 

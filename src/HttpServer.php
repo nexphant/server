@@ -30,11 +30,14 @@ class HttpServer {
     private ObjectPool $requestPool;
     private BufferPool $bufferPool;
     private FastPathRegistry $fastPath;
+    private ?\Nexph\Server\Socket\SocketDriverInterface $socketDriver = null;
+    private bool $quiet = false;
 
     // Config
     private string $host = '0.0.0.0';
     private int $port = 8080;
     private int $maxConnections = 500;
+    private int $maxAcceptPerTick = 32;
     private int $keepAliveTimeout = 2;
     private int $maxRequestsPerConnection = 100;
     private int $maxRequestSize = 10 * 1024 * 1024; // 10MB
@@ -143,6 +146,8 @@ class HttpServer {
         $this->host = $config['host'] ?? '0.0.0.0';
         $this->port = $config['port'] ?? 8080;
         $this->maxConnections = $config['max_connections'] ?? 500;
+        $this->maxAcceptPerTick = $config['max_accept_per_tick'] ?? 32;
+        $this->quiet = $config['quiet'] ?? false;
         $this->keepAliveTimeout = $config['keep_alive_timeout'] ?? 2;
         $this->maxRequestsPerConnection = $config['max_requests'] ?? 100;
         $this->maxRequestSize = $config['max_request_size'] ?? 10 * 1024 * 1024;
@@ -285,26 +290,17 @@ class HttpServer {
     }
 
     private function createServer(): void {
-        $context = stream_context_create([
-            'socket' => [
-                'backlog' => $this->backlog,
-                'so_reuseport' => true,
-            ],
-        ]);
-
-        $this->serverSocket = @stream_socket_server(
-            "tcp://{$this->host}:{$this->port}",
-            $errno,
-            $errstr,
-            STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
-            $context
-        );
-
-        if (!$this->serverSocket) {
-            throw new \RuntimeException("Failed to start server: {$errstr} ({$errno})");
+        $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create();
+        $driverName = (new \ReflectionClass($this->socketDriver))->getShortName();
+        if (!$this->quiet) {
+            error_log("Socket Driver: $driverName");
         }
 
-        stream_set_blocking($this->serverSocket, false);
+        $this->serverSocket = $this->socketDriver->listen($this->host, $this->port);
+
+        if (!$this->serverSocket) {
+            throw new \RuntimeException("Failed to start server on {$this->host}:{$this->port}");
+        }
 
         $this->loop->addReader($this->serverSocket, function ($socket) {
             $this->acceptConnections();
@@ -422,7 +418,7 @@ class HttpServer {
     }
 
     private function acceptConnections(): void {
-        for ($i = 0; $i < 128; $i++) {
+        for ($i = 0; $i < $this->maxAcceptPerTick; $i++) {
             if (!$this->acceptConnection()) {
                 break;
             }
@@ -434,7 +430,7 @@ class HttpServer {
             return false;
         }
 
-        $clientSocket = @stream_socket_accept($this->serverSocket, 0);
+        $clientSocket = $this->socketDriver->accept($this->serverSocket);
 
         if (!$clientSocket) {
             return false;
@@ -445,8 +441,8 @@ class HttpServer {
                 $this->memoryPressureRejected++;
             }
             $response = HttpParser::buildResponse(503, ['Connection' => 'close'], 'Server too busy');
-            @fwrite($clientSocket, $response);
-            @fclose($clientSocket);
+            $this->socketDriver->write($clientSocket, $response);
+            $this->socketDriver->close($clientSocket);
             return true;
         }
 
