@@ -205,10 +205,10 @@ class HttpServer {
         $this->histogramEnabled = !$this->performanceMode && (bool) ($config['histogram'] ?? true);
         $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->performanceMode ? 100 : 1)));
 
-        $backend = \Nexph\Runtime\EventLoop\EventLoopFactory::create();
+        $backend = \Nexph\Runtime\EventLoop\EventLoopFactory::create($config['event_loop'] ?? 'auto');
         $backendName = (new \ReflectionClass($backend))->getShortName();
-        if (!($config['quiet'] ?? false)) {
-            error_log("Using Event Loop Backend: $backendName");
+        if (!($config['quiet'] ?? false) && ($config['worker_id'] ?? 1) === 1) {
+            error_log("Event Loop: $backendName");
         }
         
         $this->loop = new EventLoop($backend);
