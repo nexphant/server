@@ -29,6 +29,7 @@ class HttpServer {
     private ObjectPool $responsePool;
     private ObjectPool $requestPool;
     private BufferPool $bufferPool;
+    private FastPathRegistry $fastPath;
 
     // Config
     private string $host = '0.0.0.0';
@@ -228,6 +229,7 @@ class HttpServer {
             $this->httpLatencyBuckets[(string) $bucket] = 0;
         }
         $this->httpLatencyBuckets['+Inf'] = 0;
+        $this->fastPath = new FastPathRegistry();
         Coroutine::setLoop($this->loop);
     }
 
@@ -489,7 +491,28 @@ class HttpServer {
             return;
         }
 
-        // Try to parse request
+        $fastParsed = $this->parseRequestLineFast($conn->getBuffer());
+        if ($fastParsed !== null) {
+            $fastResponse = $this->fastPath->get($fastParsed[0], $fastParsed[1]);
+            if ($fastResponse !== null) {
+                $lineEnd = strpos($conn->getBuffer(), "\r\n\r\n");
+                if ($lineEnd !== false) {
+                    $conn->consumeBuffer($lineEnd + 4);
+                    $conn->incrementRequestCount();
+                    $this->totalRequests++;
+                    $written = $conn->write($fastResponse, $this->maxWriteBufferSize);
+                    if ($written < 0) {
+                        $this->closeConnection($conn);
+                        return;
+                    }
+                    if ($conn->hasWriteBuffer()) {
+                        $this->flushPending($conn, false);
+                    }
+                    return;
+                }
+            }
+        }
+
         $parsed = HttpParser::parseRequest($conn->getBuffer());
 
         if ($parsed === null) {
@@ -2730,5 +2753,38 @@ class HttpServer {
 
     public function getConfig(): array {
         return $this->config;
+    }
+
+    private function parseRequestLineFast(string $buffer): ?array {
+        $s1 = strpos($buffer, ' ');
+        if ($s1 === false) {
+            return null;
+        }
+        $s2 = strpos($buffer, ' ', $s1 + 1);
+        if ($s2 === false) {
+            return null;
+        }
+        $method = substr($buffer, 0, $s1);
+        $uri = substr($buffer, $s1 + 1, $s2 - $s1 - 1);
+        $qPos = strpos($uri, '?');
+        $path = $qPos !== false ? substr($uri, 0, $qPos) : $uri;
+        return [$method, $path];
+    }
+
+    public function fastJson(string $method, string $path, array|string $payload, int $status = 200, array $headers = []): self {
+        $raw = RawResponseBuilder::json($status, $payload, $headers);
+        $this->fastPath->register($method, $path, $raw);
+        return $this;
+    }
+
+    public function fastText(string $method, string $path, string $body, int $status = 200, array $headers = []): self {
+        $raw = RawResponseBuilder::text($status, $body, $headers);
+        $this->fastPath->register($method, $path, $raw);
+        return $this;
+    }
+
+    public function fastRaw(string $method, string $path, string $rawResponse): self {
+        $this->fastPath->register($method, $path, $rawResponse);
+        return $this;
     }
 }
