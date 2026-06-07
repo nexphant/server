@@ -10,18 +10,15 @@ class SocketDriverFactory
     {
         $override = getenv('NEXPH_SOCKET');
         
-        if ($override === 'stream') {
-            return new StreamSocketDriver();
-        }
-        
         if ($override === 'native' && ExtensionDetector::has('sockets')) {
             return new NativeSocketDriver();
         }
 
-        if (ExtensionDetector::has('sockets')) {
-            return new NativeSocketDriver();
-        }
-
         return new StreamSocketDriver();
+    }
+
+    public static function isValidSocket(mixed $socket): bool
+    {
+        return is_resource($socket) || $socket instanceof \Socket;
     }
 }

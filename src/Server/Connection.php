@@ -47,7 +47,11 @@ class Connection {
         $this->lastWriteAt = $this->connectedAt;
         $this->lastPongAt = $this->connectedAt;
 
-        stream_set_blocking($socket, false);
+        if ($socket instanceof \Socket) {
+            socket_set_nonblock($socket);
+        } else {
+            stream_set_blocking($socket, false);
+        }
         
         // Track socket resource (skip if not object in PHP 8.0)
         if (class_exists('\Nexph\Core\Resource\ResourceRegistry') && class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
@@ -60,13 +64,21 @@ class Connection {
             }
         }
 
-        $name = stream_socket_get_name($socket, true);
-        if ($name && strpos($name, ':') !== false) {
-            [$this->remoteAddr, $this->remotePort] = explode(':', $name);
-            $this->remotePort = (int) $this->remotePort;
+        if ($socket instanceof \Socket) {
+            $addr = '';
+            $port = 0;
+            @socket_getpeername($socket, $addr, $port);
+            $this->remoteAddr = $addr;
+            $this->remotePort = $port;
         } else {
-            $this->remoteAddr = '0.0.0.0';
-            $this->remotePort = 0;
+            $name = stream_socket_get_name($socket, true);
+            if ($name && strpos($name, ':') !== false) {
+                [$this->remoteAddr, $this->remotePort] = explode(':', $name);
+                $this->remotePort = (int) $this->remotePort;
+            } else {
+                $this->remoteAddr = '0.0.0.0';
+                $this->remotePort = 0;
+            }
         }
     }
 
@@ -87,14 +99,14 @@ class Connection {
     }
 
     public function read(): ?string {
-        if (!is_resource($this->socket)) {
+        if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             return null;
         }
 
         $data = @fread($this->socket, 65536);
 
         if ($data === false || $data === '') {
-            if (!is_resource($this->socket) || feof($this->socket)) {
+            if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket) || feof($this->socket)) {
                 return null;
             }
             return '';
@@ -120,7 +132,7 @@ class Connection {
     }
 
     public function write(string $data, int $maxBufferSize = 0): int {
-        if (!is_resource($this->socket)) {
+        if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             return -1;
         }
 
@@ -142,7 +154,7 @@ class Connection {
             return 0;
         }
 
-        if (!is_resource($this->socket)) {
+        if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             $this->writeBuffer->reset();
             return -1;
         }
@@ -172,7 +184,7 @@ class Connection {
     }
 
     public function close(): void {
-        if (is_resource($this->socket)) {
+        if (\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             @fclose($this->socket);
             $this->socket = null;
         }
@@ -187,7 +199,7 @@ class Connection {
     }
 
     public function isAlive(): bool {
-        return is_resource($this->socket);
+        return \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket);
     }
 
     public function getLastActivity(): float {

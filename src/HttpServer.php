@@ -292,7 +292,7 @@ class HttpServer {
     private function createServer(): void {
         $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create();
         $driverName = (new \ReflectionClass($this->socketDriver))->getShortName();
-        if (!$this->quiet) {
+        if (!$this->quiet && $this->workerId === 1) {
             error_log("Socket Driver: $driverName");
         }
 
@@ -1672,7 +1672,7 @@ class HttpServer {
 
     private function flushPending(Connection $conn, bool $closeWhenDone): void {
         $socket = $conn->getSocket();
-        if (!$socket || !is_resource($socket)) {
+        if (!$socket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
             return;
         }
 
@@ -1699,7 +1699,7 @@ class HttpServer {
         $wasWebSocket = $conn->isWebSocket();
         $webSocketPath = $conn->getWebSocketPath();
 
-        if ($socket && is_resource($socket)) {
+        if ($socket && \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
             $this->loop->removeReader($socket);
             $this->loop->removeWriter($socket);
         }
@@ -1823,7 +1823,7 @@ class HttpServer {
     }
 
     private function pauseAccepting(): void {
-        if (!$this->accepting || !$this->serverSocket || !is_resource($this->serverSocket)) {
+        if (!$this->accepting || !$this->serverSocket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             $this->accepting = false;
             return;
         }
@@ -1833,7 +1833,7 @@ class HttpServer {
     }
 
     private function resumeAccepting(): void {
-        if ($this->accepting || $this->draining || !$this->serverSocket || !is_resource($this->serverSocket)) {
+        if ($this->accepting || $this->draining || !$this->serverSocket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             return;
         }
 
@@ -1911,7 +1911,7 @@ class HttpServer {
         $this->publishStats();
 
         // Close server socket
-        if ($this->serverSocket && is_resource($this->serverSocket)) {
+        if ($this->serverSocket && \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             $this->loop->removeReader($this->serverSocket);
             @fclose($this->serverSocket);
         }

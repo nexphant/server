@@ -50,7 +50,7 @@ class Server {
     }
 
     public function close(): void {
-        if ($this->socket && is_resource($this->socket)) {
+        if ($this->socket && \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             $this->loop->removeReader($this->socket);
             @fclose($this->socket);
         }

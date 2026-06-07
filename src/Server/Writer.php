@@ -20,7 +20,7 @@ class Writer {
 
     public function flushPending(Connection $conn, bool $closeWhenDone, callable $onClose): void {
         $socket = $conn->getSocket();
-        if (!$socket || !is_resource($socket)) {
+        if (!$socket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
             return;
         }
 

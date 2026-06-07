@@ -77,7 +77,7 @@ class NativeSocketDriver implements SocketDriverInterface
 
     public function close(mixed $conn): void
     {
-        if (is_resource($conn)) {
+        if (is_resource($conn) || $conn instanceof \Socket) {
             @socket_close($conn);
         }
     }
