@@ -508,6 +508,12 @@ class HttpServer {
                     $conn->consumeBuffer($lineEnd + 4);
                     $conn->incrementRequestCount();
                     $this->totalRequests++;
+                    
+                    if ($conn->getRequestCount() >= $this->maxRequestsPerConnection) {
+                        $fastResponse = str_replace("Connection: keep-alive", "Connection: close", $fastResponse);
+                        $conn->setKeepAlive(false);
+                    }
+                    
                     if ($conn->writeFast($fastResponse) <= 0) {
                         $this->closeConnection($conn);
                     }
@@ -569,12 +575,17 @@ class HttpServer {
             return;
         }
 
-        // Disable keep-alive under pressure
+        // Disable keep-alive under pressure or after max requests
         $keepAlive = $request->wantsKeepAlive() &&
                      $conn->getRequestCount() < $this->maxRequestsPerConnection &&
                      count($this->connections) < $this->maxConnections * 0.8 &&
                      $this->memoryPressureState === 'normal' &&
                      !$this->draining;
+        
+        if ($conn->getRequestCount() >= $this->maxRequestsPerConnection) {
+            $keepAlive = false;
+        }
+        
         $conn->setKeepAlive($keepAlive);
 
         // Fast path: try sync dispatch, fall back to coroutine
