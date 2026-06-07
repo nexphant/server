@@ -491,29 +491,25 @@ class HttpServer {
             return;
         }
 
-        $fastParsed = $this->parseRequestLineFast($conn->getBuffer());
+        $buffer = $conn->getBuffer();
+        $fastParsed = $this->parseRequestLineFast($buffer);
         if ($fastParsed !== null) {
             $fastResponse = $this->fastPath->get($fastParsed[0], $fastParsed[1]);
             if ($fastResponse !== null) {
-                $lineEnd = strpos($conn->getBuffer(), "\r\n\r\n");
+                $lineEnd = strpos($buffer, "\r\n\r\n");
                 if ($lineEnd !== false) {
                     $conn->consumeBuffer($lineEnd + 4);
                     $conn->incrementRequestCount();
                     $this->totalRequests++;
-                    $written = $conn->write($fastResponse, $this->maxWriteBufferSize);
-                    if ($written < 0) {
+                    if ($conn->writeFast($fastResponse) <= 0) {
                         $this->closeConnection($conn);
-                        return;
-                    }
-                    if ($conn->hasWriteBuffer()) {
-                        $this->flushPending($conn, false);
                     }
                     return;
                 }
             }
         }
 
-        $parsed = HttpParser::parseRequest($conn->getBuffer());
+        $parsed = HttpParser::parseRequest($buffer);
 
         if ($parsed === null) {
             return; // Incomplete request

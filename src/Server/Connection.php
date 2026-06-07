@@ -132,6 +132,11 @@ class Connection {
         return $this->flush();
     }
 
+    public function writeFast(string $data): int {
+        $written = @fwrite($this->socket, $data);
+        return $written === false ? -1 : $written;
+    }
+
     public function flush(): int {
         if ($this->writeBuffer->length() === 0) {
             return 0;

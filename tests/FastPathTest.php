@@ -4,6 +4,7 @@ namespace Nexph\Tests\Server;
 
 use Nexph\Server\FastPathRegistry;
 use Nexph\Server\RawResponseBuilder;
+use Nexph\Server\BufferSlab;
 use PHPUnit\Framework\TestCase;
 
 class FastPathTest extends TestCase {
@@ -33,5 +34,27 @@ class FastPathTest extends TestCase {
         $this->assertEquals($rawResponse, $registry->get('GET', '/test'));
         $this->assertNull($registry->get('GET', '/other'));
         $this->assertFalse($registry->has('POST', '/test'));
+    }
+
+    public function testBufferSlabOffsetOptimization() {
+        $slab = new BufferSlab();
+        $slab->append('GET /path HTTP/1.1');
+        $this->assertEquals(18, $slab->length());
+        $slab->consume(4);
+        $this->assertEquals(14, $slab->length());
+        $this->assertEquals('/path HTTP/1.1', $slab->get());
+        $slab->consume(6);
+        $this->assertEquals(8, $slab->length());
+        $this->assertEquals('HTTP/1.1', $slab->get());
+    }
+
+    public function testBufferSlabCompaction() {
+        $slab = new BufferSlab();
+        $data = str_repeat('x', 10000);
+        $slab->append($data);
+        $slab->consume(9000);
+        $this->assertEquals(1000, $slab->length());
+        $slab->append('more');
+        $this->assertEquals(1004, $slab->length());
     }
 }
