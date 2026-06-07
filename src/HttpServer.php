@@ -200,7 +200,13 @@ class HttpServer {
         $this->histogramEnabled = !$this->performanceMode && (bool) ($config['histogram'] ?? true);
         $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->performanceMode ? 100 : 1)));
 
-        $this->loop = new EventLoop();
+        $backend = \Nexph\Runtime\EventLoop\EventLoopFactory::create();
+        $backendName = (new \ReflectionClass($backend))->getShortName();
+        if (!($config['quiet'] ?? false)) {
+            error_log("Using Event Loop Backend: $backendName");
+        }
+        
+        $this->loop = new EventLoop($backend);
         $this->loop->setMaxDeferred((int) ($config['max_deferred'] ?? 100000));
         $this->memoryMonitor = new MemoryMonitor();
         $this->objectTracker = new ObjectTracker($this->objectTrackingEnabled);

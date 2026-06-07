@@ -30,36 +30,57 @@ class EventLoop {
     private float $now;
     private int $tickCount = 0;
     private float $lastTickDurationMs = 0.0;
+    private ?\Nexph\Runtime\EventLoop\EventLoopInterface $backend = null;
 
-    public function __construct() {
+    public function __construct(?\Nexph\Runtime\EventLoop\EventLoopInterface $backend = null) {
+        $this->backend = $backend;
         $this->now = microtime(true);
         $this->timerQueue = new \SplPriorityQueue();
         $this->timerQueue->setExtractFlags(\SplPriorityQueue::EXTR_DATA);
     }
 
     public function addReader($stream, callable $callback): void {
+        if ($this->backend) {
+            $this->backend->onReadable($stream, $callback);
+            return;
+        }
         $id = (int) $stream;
         $this->readers[$id] = ['stream' => $stream, 'callback' => $callback];
         $this->streamsDirty = true;
     }
 
     public function removeReader($stream): void {
+        if ($this->backend) {
+            $this->backend->removeReadable($stream);
+            return;
+        }
         unset($this->readers[(int) $stream]);
         $this->streamsDirty = true;
     }
 
     public function addWriter($stream, callable $callback): void {
+        if ($this->backend) {
+            $this->backend->onWritable($stream, $callback);
+            return;
+        }
         $id = (int) $stream;
         $this->writers[$id] = ['stream' => $stream, 'callback' => $callback];
         $this->streamsDirty = true;
     }
 
     public function removeWriter($stream): void {
+        if ($this->backend) {
+            $this->backend->removeWritable($stream);
+            return;
+        }
         unset($this->writers[(int) $stream]);
         $this->streamsDirty = true;
     }
 
     public function addTimer(float $interval, callable $callback, bool $periodic = false): int {
+        if ($this->backend) {
+            return $this->backend->timer($interval, $callback, $periodic);
+        }
         $id = ++$this->timerId;
         $next = microtime(true) + $interval;
         $this->timers[$id] = [
@@ -73,6 +94,10 @@ class EventLoop {
     }
 
     public function cancelTimer(int $id): void {
+        if ($this->backend) {
+            $this->backend->cancelTimer($id);
+            return;
+        }
         unset($this->timers[$id]);
     }
 
@@ -102,6 +127,16 @@ class EventLoop {
     }
 
     public function run(): void {
+        if ($this->backend) {
+            $this->running = true;
+            $this->backend->timer(0.001, function() {
+                $this->processDeferredQueue();
+            }, true);
+            $this->backend->run();
+            $this->running = false;
+            return;
+        }
+
         $this->running = true;
 
         while ($this->running) {
@@ -110,14 +145,13 @@ class EventLoop {
     }
 
     public function stop(): void {
+        if ($this->backend) {
+            $this->backend->stop();
+        }
         $this->running = false;
     }
 
-    public function tick(): void {
-        $startedAt = microtime(true);
-        $this->tickCount++;
-        $this->now = microtime(true);
-
+    private function processDeferredQueue(): void {
         $deferredEnd = $this->deferredHead + $this->deferredCount;
         $processed = 0;
         for ($i = $this->deferredHead; $i < $deferredEnd; $i++) {
@@ -131,6 +165,14 @@ class EventLoop {
             $this->deferred = array_values(array_slice($this->deferred, $this->deferredHead, null, true));
             $this->deferredHead = 0;
         }
+    }
+
+    public function tick(): void {
+        $startedAt = microtime(true);
+        $this->tickCount++;
+        $this->now = microtime(true);
+
+        $this->processDeferredQueue();
 
         $this->processTimers();
 
