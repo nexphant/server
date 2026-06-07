@@ -213,6 +213,11 @@ class HttpServer {
         
         $this->loop = new EventLoop($backend);
         $this->loop->setMaxDeferred((int) ($config['max_deferred'] ?? 100000));
+        $this->loop->setFairnessLimits(
+            (int) ($config['max_read_callbacks_per_tick'] ?? 512),
+            (int) ($config['max_write_callbacks_per_tick'] ?? 512),
+            (int) ($config['max_deferred_per_tick'] ?? 512)
+        );
         $this->memoryMonitor = new MemoryMonitor();
         $this->objectTracker = new ObjectTracker($this->objectTrackingEnabled);
         $this->responsePool = new ObjectPool(

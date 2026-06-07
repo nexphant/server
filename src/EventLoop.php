@@ -109,6 +109,12 @@ class EventLoop {
         $this->maxDeferred = max(1, $maxDeferred);
     }
 
+    public function setFairnessLimits(int $maxRead, int $maxWrite, int $maxDeferred): void {
+        $this->maxReadCallbacksPerTick = max(1, $maxRead);
+        $this->maxWriteCallbacksPerTick = max(1, $maxWrite);
+        $this->maxDeferredPerTick = max(1, $maxDeferred);
+    }
+
     public function defer(callable $callback): bool {
         if ($this->deferredCount >= $this->maxDeferred) {
             $this->deferredDropped++;
