@@ -1,0 +1,93 @@
+<?php
+
+namespace Nexph\Server\Socket;
+
+class NativeSocketDriver implements SocketDriverInterface
+{
+    public function __construct()
+    {
+        if (!extension_loaded('sockets')) {
+            throw new \RuntimeException('ext-sockets is not available');
+        }
+    }
+
+    public function listen(string $host, int $port): mixed
+    {
+        $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+        
+        if ($socket === false) {
+            throw new \RuntimeException('Failed to create socket: ' . socket_strerror(socket_last_error()));
+        }
+        
+        socket_set_option($socket, SOL_SOCKET, SO_REUSEADDR, 1);
+        socket_set_option($socket, SOL_SOCKET, SO_REUSEPORT, 1);
+        socket_set_option($socket, SOL_TCP, TCP_NODELAY, 1);
+        socket_set_option($socket, SOL_SOCKET, SO_RCVBUF, 262144);
+        socket_set_option($socket, SOL_SOCKET, SO_SNDBUF, 262144);
+        
+        if (!socket_bind($socket, $host, $port)) {
+            $error = socket_strerror(socket_last_error($socket));
+            socket_close($socket);
+            throw new \RuntimeException("Failed to bind socket: $error");
+        }
+        
+        if (!socket_listen($socket, 4096)) {
+            $error = socket_strerror(socket_last_error($socket));
+            socket_close($socket);
+            throw new \RuntimeException("Failed to listen on socket: $error");
+        }
+        
+        socket_set_nonblock($socket);
+        
+        return $socket;
+    }
+
+    public function accept(mixed $server): mixed
+    {
+        $conn = @socket_accept($server);
+        
+        if ($conn === false) {
+            return null;
+        }
+        
+        socket_set_nonblock($conn);
+        socket_set_option($conn, SOL_TCP, TCP_NODELAY, 1);
+        
+        return $conn;
+    }
+
+    public function read(mixed $conn): ?string
+    {
+        $data = @socket_read($conn, 8192, PHP_BINARY_READ);
+        
+        if ($data === false || $data === '') {
+            return null;
+        }
+        
+        return $data;
+    }
+
+    public function write(mixed $conn, string $data): int|false
+    {
+        $written = @socket_write($conn, $data);
+        
+        return $written === false ? false : $written;
+    }
+
+    public function close(mixed $conn): void
+    {
+        if (is_resource($conn)) {
+            @socket_close($conn);
+        }
+    }
+
+    public function setNonBlocking(mixed $socket): void
+    {
+        socket_set_nonblock($socket);
+    }
+
+    public function getLastError(mixed $socket): string
+    {
+        return socket_strerror(socket_last_error($socket));
+    }
+}
