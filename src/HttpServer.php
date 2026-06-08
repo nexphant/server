@@ -251,13 +251,15 @@ class HttpServer {
                 $sharedTable = null;
             }
         }
+        $adaptiveAcceptEnabled = (bool) ($config['adaptive_accept'] ?? false);
         $this->adaptive = AdaptiveRuntime::init($this->workerId, [
             'max_connections'                 => $this->maxConnections,
-            'max_requests'                    => ($config['max_requests'] ?? 100) * max(1, count($this->connections ?? [])),
+            'max_requests'                    => (int) ($config['adaptive_max_active_requests'] ?? 1000),
             'max_pending_writes'              => (int) ($config['adaptive_max_pending_writes']  ?? 200),
             'max_tick_ms'                     => (float) ($config['adaptive_max_tick_ms']       ?? 50.0),
             'max_accept_per_tick'             => $this->maxAcceptPerTick,
             'max_reads_per_connection_tick'   => (int) ($config['max_reads_per_connection_tick']  ?? 8),
+            'adaptive_accept_enabled'         => $adaptiveAcceptEnabled,
             'max_writes_per_connection_tick'  => (int) ($config['max_writes_per_connection_tick'] ?? 8),
         ], $sharedTable);
     }
@@ -432,6 +434,12 @@ class HttpServer {
             $this->publishStats();
         }, periodic: true);
 
+        if ($this->adaptive !== null) {
+            $this->loop->addTimer(0.25, function () {
+                $this->adaptive->publishToSharedTable();
+            }, periodic: true);
+        }
+
         $this->loop->addTimer(60.0, function () {
             foreach ($this->middleware as $middleware) {
                 if (is_object($middleware) && method_exists($middleware, 'cleanup')) {
@@ -453,8 +461,24 @@ class HttpServer {
         }, periodic: true);
     }
 
+    private function countPendingWrites(): int {
+        $count = 0;
+        foreach ($this->connections as $conn) {
+            if ($conn->hasWriteBuffer()) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
     private function acceptConnections(): void {
-        $limit = $this->adaptive !== null
+        if ($this->adaptive !== null) {
+            $this->adaptive->stats->activeConnections = count($this->connections);
+            $this->adaptive->stats->activeRequests    = $this->activeRequests;
+            $this->adaptive->stats->pendingWrites     = $this->countPendingWrites();
+        }
+
+        $limit = ($this->adaptive !== null && $this->adaptive->isAcceptThrottlingEnabled())
             ? $this->adaptive->acceptLimit()
             : $this->maxAcceptPerTick;
 
@@ -514,13 +538,17 @@ class HttpServer {
     private function handleRead(Connection $conn): void {
         $data = $conn->read();
 
+        if ($this->adaptive !== null) {
+            $this->adaptive->fairness->recordRead($conn->getId());
+        }
+
         if ($data === null) {
             $this->closeConnection($conn);
             return;
         }
 
         if ($data === '') {
-            return; // No data yet
+            return;
         }
 
         if ($conn->isWebSocket()) {
@@ -1738,6 +1766,10 @@ class HttpServer {
                 return;
             }
 
+            if ($this->adaptive !== null) {
+                $this->adaptive->fairness->recordWrite($conn->getId());
+            }
+
             if ($conn->hasWriteBuffer()) {
                 return;
             }
@@ -2368,13 +2400,6 @@ class HttpServer {
     }
 
     private function publishStats(): void {
-        // Sync adaptive stats before publishing
-        if ($this->adaptive !== null) {
-            $this->adaptive->stats->activeConnections = count($this->connections);
-            $this->adaptive->stats->activeRequests    = $this->activeRequests;
-            $this->adaptive->publishToSharedTable();
-        }
-
         $this->prepareStatsDir();
 
         $file = $this->statsFile();
