@@ -184,18 +184,6 @@ class HttpServer {
         $this->sseBusMaxBytes = max(65536, (int) ($config['sse_bus_max_bytes'] ?? $this->webSocketBusMaxBytes));
         $this->sseAuthToken = (string) ($config['sse_auth_token'] ?? '');
         $this->sseReplayLimit = max(0, (int) ($config['sse_replay_limit'] ?? 1024));
-        if ($this->webSocketBusType === 'redis') {
-            $this->webSocketRedisBus = new WebSocketRedisBus(
-                (string) ($config['websocket_redis_url'] ?? 'redis://127.0.0.1:6379/0'),
-                (string) ($config['websocket_redis_channel'] ?? 'nexph:websocket')
-            );
-        }
-        if ($this->sseBusType === 'redis') {
-            $this->sseRedisBus = new WebSocketRedisBus(
-                (string) ($config['sse_redis_url'] ?? $config['websocket_redis_url'] ?? 'redis://127.0.0.1:6379/0'),
-                (string) ($config['sse_redis_channel'] ?? 'nexph:sse')
-            );
-        }
         $this->debug = $config['debug'] ?? false;
         $this->objectTrackingEnabled = (bool) ($config['object_tracking'] ?? false);
         $this->poolSafetyEnabled = (bool) ($config['pool_safety'] ?? false);
@@ -376,12 +364,24 @@ class HttpServer {
             }
         }
 
+        if ($this->webSocketBusType === 'redis' && !$this->webSocketRedisBus) {
+            $this->webSocketRedisBus = new WebSocketRedisBus(
+                (string) ($this->config['websocket_redis_url'] ?? 'redis://127.0.0.1:6379/0'),
+                (string) ($this->config['websocket_redis_channel'] ?? 'nexph:websocket')
+            );
+        }
         if ($this->webSocketRedisBus) {
             $this->webSocketRedisBus->start($this->loop, function (string $event): void {
                 $this->handleWebSocketBusEvent($event);
             });
         }
 
+        if ($this->sseBusType === 'redis' && !$this->sseRedisBus) {
+            $this->sseRedisBus = new WebSocketRedisBus(
+                (string) ($this->config['sse_redis_url'] ?? $this->config['websocket_redis_url'] ?? 'redis://127.0.0.1:6379/0'),
+                (string) ($this->config['sse_redis_channel'] ?? 'nexph:sse')
+            );
+        }
         if ($this->sseRedisBus) {
             $this->sseRedisBus->start($this->loop, function (string $event): void {
                 $this->handleSseBusEvent($event);
@@ -435,13 +435,19 @@ class HttpServer {
             return false;
         }
 
+        $connCount = count($this->connections);
+        $loadRatio = $connCount / max(1, $this->maxConnections);
+        if ($loadRatio > 0.9 || $this->activeRequests > $connCount * 2) {
+            return false;
+        }
+
         $clientSocket = $this->socketDriver->accept($this->serverSocket);
 
         if (!$clientSocket) {
             return false;
         }
 
-        if ($this->memoryPressureState === 'hard' || count($this->connections) >= $this->maxConnections) {
+        if ($this->memoryPressureState === 'hard' || $connCount >= $this->maxConnections) {
             if ($this->memoryPressureState === 'hard') {
                 $this->memoryPressureRejected++;
             }
@@ -506,15 +512,14 @@ class HttpServer {
                 $lineEnd = strpos($buffer, "\r\n\r\n");
                 if ($lineEnd !== false) {
                     $conn->consumeBuffer($lineEnd + 4);
-                    $conn->incrementRequestCount();
                     $this->totalRequests++;
                     
-                    if ($conn->getRequestCount() >= $this->maxRequestsPerConnection) {
+                    $shouldClose = $conn->getRequestCount() >= $this->maxRequestsPerConnection - 1;
+                    if ($shouldClose) {
                         $fastResponse = str_replace("Connection: keep-alive", "Connection: close", $fastResponse);
-                        $conn->setKeepAlive(false);
                     }
                     
-                    if ($conn->writeFast($fastResponse) <= 0) {
+                    if ($conn->writeFast($fastResponse) <= 0 || $shouldClose) {
                         $this->closeConnection($conn);
                     }
                     return;
@@ -559,7 +564,7 @@ class HttpServer {
             $request->setAttribute('__response_cache_key', $cacheKey);
         }
         $requestContext = '';
-        if ($this->objectTrackingEnabled) {
+        if ($this->objectTrackingEnabled && !$this->performanceMode) {
             $requestContext = 'request:' . $this->workerId . ':' . $this->totalRequests;
             $request->setAttribute('__runtime_context', $requestContext);
             $this->objectTracker->openContext($requestContext);

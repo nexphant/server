@@ -198,7 +198,6 @@ class EventLoop {
     }
 
     public function tick(): void {
-        $startedAt = microtime(true);
         $this->tickCount++;
         $this->now = microtime(true);
 
@@ -258,8 +257,6 @@ class EventLoop {
                 ($this->writers[$id]['callback'])($stream);
             }
         }
-
-        $this->lastTickDurationMs = (microtime(true) - $startedAt) * 1000;
     }
 
     private function calculateTimeout(): float {

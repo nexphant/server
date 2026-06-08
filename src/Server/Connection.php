@@ -112,9 +112,6 @@ class Connection {
             return '';
         }
 
-        $now = microtime(true);
-        $this->lastReadAt = $now;
-        $this->lastActivity = $now;
         $this->buffer->append($data);
         return $data;
     }
@@ -168,8 +165,6 @@ class Connection {
 
         if ($written > 0) {
             $this->writeBuffer->consume($written);
-            $this->lastWriteAt = microtime(true);
-            $this->lastActivity = max($this->lastActivity, $this->lastWriteAt);
         }
 
         return $written;
