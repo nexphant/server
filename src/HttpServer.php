@@ -14,6 +14,8 @@ use Nexph\Server\Server\Connection;
 use Nexph\Server\Server\BufferPool;
 use Nexph\Runtime\MemoryMonitor;
 use Nexph\Runtime\ResponseCache;
+use Nexph\Runtime\Adaptive\AdaptiveRuntime;
+use Nexph\Runtime\Adaptive\SharedWorkerTable;
 
 class HttpServer {
     private EventLoop $loop;
@@ -32,6 +34,7 @@ class HttpServer {
     private FastPathRegistry $fastPath;
     private ?\Nexph\Server\Socket\SocketDriverInterface $socketDriver = null;
     private bool $quiet = false;
+    private ?AdaptiveRuntime $adaptive = null;
 
     // Config
     private string $host = '0.0.0.0';
@@ -235,6 +238,28 @@ class HttpServer {
         $this->httpLatencyBuckets['+Inf'] = 0;
         $this->fastPath = new FastPathRegistry();
         Coroutine::setLoop($this->loop);
+
+        // Adaptive runtime primitives
+        $sharedTable = null;
+        if (($config['adaptive_shared_table'] ?? true) && ($this->workerCount > 1)) {
+            try {
+                $sharedTable = new SharedWorkerTable(
+                    (int) ($config['adaptive_shm_key'] ?? 0),
+                    (int) ($config['worker_count'] ?? 64)
+                );
+            } catch (\Throwable) {
+                $sharedTable = null;
+            }
+        }
+        $this->adaptive = AdaptiveRuntime::init($this->workerId, [
+            'max_connections'                 => $this->maxConnections,
+            'max_requests'                    => ($config['max_requests'] ?? 100) * max(1, count($this->connections ?? [])),
+            'max_pending_writes'              => (int) ($config['adaptive_max_pending_writes']  ?? 200),
+            'max_tick_ms'                     => (float) ($config['adaptive_max_tick_ms']       ?? 50.0),
+            'max_accept_per_tick'             => $this->maxAcceptPerTick,
+            'max_reads_per_connection_tick'   => (int) ($config['max_reads_per_connection_tick']  ?? 8),
+            'max_writes_per_connection_tick'  => (int) ($config['max_writes_per_connection_tick'] ?? 8),
+        ], $sharedTable);
     }
 
     public function use(callable $middleware): self {
@@ -317,6 +342,12 @@ class HttpServer {
             $this->loopLagMs = $this->loopLagMs === 0.0 ? $lag : ($this->loopLagMs * 0.8) + ($lag * 0.2);
             $this->loopLagMaxMs = max($this->loopLagMaxMs, $lag);
             $lastTick = $now;
+
+            // adaptive: record tick duration and reset fairness counters
+            if ($this->adaptive !== null) {
+                $this->adaptive->stats->loopTickDuration = $this->loopLagMs;
+                $this->adaptive->fairness->reset();
+            }
         }, periodic: true);
 
         // TUI uptime ticker
@@ -423,7 +454,11 @@ class HttpServer {
     }
 
     private function acceptConnections(): void {
-        for ($i = 0; $i < $this->maxAcceptPerTick; $i++) {
+        $limit = $this->adaptive !== null
+            ? $this->adaptive->acceptLimit()
+            : $this->maxAcceptPerTick;
+
+        for ($i = 0; $i < $limit; $i++) {
             if (!$this->acceptConnection()) {
                 break;
             }
@@ -2333,6 +2368,13 @@ class HttpServer {
     }
 
     private function publishStats(): void {
+        // Sync adaptive stats before publishing
+        if ($this->adaptive !== null) {
+            $this->adaptive->stats->activeConnections = count($this->connections);
+            $this->adaptive->stats->activeRequests    = $this->activeRequests;
+            $this->adaptive->publishToSharedTable();
+        }
+
         $this->prepareStatsDir();
 
         $file = $this->statsFile();
