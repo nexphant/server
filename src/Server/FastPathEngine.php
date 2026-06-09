@@ -5,6 +5,7 @@ namespace Nexph\Server\Server;
 class FastPathEngine {
     private array $routes = [];
     private array $prebuilt = [];
+    private array $exactCache = [];
 
     public function register(string $method, string $path, string $rawResponse): void {
         $key = "$method $path";
@@ -23,7 +24,11 @@ class FastPathEngine {
         );
     }
 
-    public function match(string $buffer): ?array {
+    public function matchExact(string $buffer): ?array {
+        if (isset($this->exactCache[$buffer])) {
+            return $this->exactCache[$buffer];
+        }
+
         $end = strpos($buffer, "\r\n");
         if ($end === false || $end > 128) {
             return null;
@@ -56,11 +61,21 @@ class FastPathEngine {
         $keepAlive = stripos($buffer, "Connection: keep-alive") !== false 
                   || stripos($buffer, "Connection: close") === false;
 
-        return [
+        $result = [
             'key' => $key,
             'keep_alive' => $keepAlive,
             'consumed' => $headerEnd + 4,
         ];
+
+        if (strlen($buffer) < 512) {
+            $this->exactCache[$buffer] = $result;
+        }
+
+        return $result;
+    }
+
+    public function match(string $buffer): ?array {
+        return $this->matchExact($buffer);
     }
 
     public function getResponse(string $key, bool $keepAlive): string {

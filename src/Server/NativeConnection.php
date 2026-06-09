@@ -7,6 +7,7 @@ class NativeConnection {
     private int $id;
     private string $readBuffer = '';
     private string $writeBuffer = '';
+    private int $writeOffset = 0;
     private float $lastActivity;
     private bool $keepAlive = true;
     private int $requestCount = 0;
@@ -77,7 +78,16 @@ class NativeConnection {
             return 0;
         }
 
-        $written = @socket_send($this->socket, $this->writeBuffer, strlen($this->writeBuffer), MSG_DONTWAIT);
+        $len = strlen($this->writeBuffer);
+        $remaining = $len - $this->writeOffset;
+        
+        if ($remaining <= 0) {
+            $this->writeBuffer = '';
+            $this->writeOffset = 0;
+            return 0;
+        }
+
+        $written = @socket_send($this->socket, $this->writeBuffer, $remaining, MSG_DONTWAIT, $this->writeOffset);
         
         if ($written === false) {
             $error = socket_last_error($this->socket);
@@ -85,29 +95,36 @@ class NativeConnection {
                 return 0;
             }
             $this->writeBuffer = '';
+            $this->writeOffset = 0;
             return -1;
         }
 
         if ($written > 0) {
-            $this->writeBuffer = substr($this->writeBuffer, $written);
+            $this->writeOffset += $written;
             $this->lastActivity = microtime(true);
+            
+            if ($this->writeOffset >= $len) {
+                $this->writeBuffer = '';
+                $this->writeOffset = 0;
+            }
         }
 
         return $written;
     }
 
     public function hasWriteBuffer(): bool {
-        return $this->writeBuffer !== '';
+        return $this->writeBuffer !== '' && $this->writeOffset < strlen($this->writeBuffer);
     }
 
     public function getWriteBufferSize(): int {
-        return strlen($this->writeBuffer);
+        return max(0, strlen($this->writeBuffer) - $this->writeOffset);
     }
 
     public function close(): void {
         @socket_close($this->socket);
         $this->readBuffer = '';
         $this->writeBuffer = '';
+        $this->writeOffset = 0;
     }
 
     public function isAlive(): bool {
