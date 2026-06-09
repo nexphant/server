@@ -1767,6 +1767,10 @@ class HttpServer {
                 $response->notFound();
             }
         } catch (\Throwable $e) {
+            $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
+            if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+                $lifecycleOwner->cancel();
+            }
             $this->handleError($e, $response);
         }
 
@@ -1775,45 +1779,53 @@ class HttpServer {
     }
 
     private function handleRequestAsync(ServerRequest $request, ServerResponse $response, Connection $conn, \Generator $pendingMiddleware): \Generator {
-        yield from $pendingMiddleware;
-        if ($response->isSent()) {
-            $this->finishHttpRequest($request, $response);
-            $this->sendResponse($conn, $response);
-            return;
-        }
-
-        // Continue remaining middleware
-        $found = false;
-        foreach ($this->middleware as $middleware) {
-            if (!$found) {
-                $found = true;
-                continue;
-            }
-            $result = $middleware($request, $response);
-            if ($result instanceof \Generator) {
-                yield from $result;
-            }
-            if ($result === false || $response->isSent()) {
+        try {
+            yield from $pendingMiddleware;
+            if ($response->isSent()) {
                 $this->finishHttpRequest($request, $response);
                 $this->sendResponse($conn, $response);
                 return;
             }
-        }
 
-        if ($this->requestHandler) {
-            $result = ($this->requestHandler)($request, $response);
-            if ($result instanceof \Generator) {
-                yield from $result;
+            // Continue remaining middleware
+            $found = false;
+            foreach ($this->middleware as $middleware) {
+                if (!$found) {
+                    $found = true;
+                    continue;
+                }
+                $result = $middleware($request, $response);
+                if ($result instanceof \Generator) {
+                    yield from $result;
+                }
+                if ($result === false || $response->isSent()) {
+                    $this->finishHttpRequest($request, $response);
+                    $this->sendResponse($conn, $response);
+                    return;
+                }
             }
-            if ($response->isSent() || $request->getAttribute('__stream_started', false)) {
-                return;
-            }
-        } else {
-            $response->notFound();
-        }
 
-        $this->finishHttpRequest($request, $response);
-        $this->sendResponse($conn, $response);
+            if ($this->requestHandler) {
+                $result = ($this->requestHandler)($request, $response);
+                if ($result instanceof \Generator) {
+                    yield from $result;
+                }
+                if ($response->isSent() || $request->getAttribute('__stream_started', false)) {
+                    return;
+                }
+            } else {
+                $response->notFound();
+            }
+
+            $this->finishHttpRequest($request, $response);
+            $this->sendResponse($conn, $response);
+        } catch (\Throwable $e) {
+            $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
+            if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+                $lifecycleOwner->cancel();
+            }
+            throw $e;
+        }
     }
 
     private function resumeHandler(\Generator $gen, ServerRequest $request, ServerResponse $response, Connection $conn): \Generator {
@@ -1823,6 +1835,10 @@ class HttpServer {
                 return;
             }
         } catch (\Throwable $e) {
+            $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
+            if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+                $lifecycleOwner->cancel();
+            }
             $this->handleError($e, $response);
         }
         $this->finishHttpRequest($request, $response);
@@ -1852,6 +1868,13 @@ class HttpServer {
             $this->httpLatencyCount++;
         }
         
+        // Close lifecycle owner first (cancel + close children + release resources)
+        $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
+        if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+            $lifecycleOwner->cancel();
+            $lifecycleOwner->close();
+        }
+        
         // Close request owner
         if (class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
             $ownerId = $request->getAttribute('__owner_id');
@@ -1870,10 +1893,6 @@ class HttpServer {
             if ($context !== '') {
                 $this->objectTracker->closeContext($context);
             }
-        }
-        $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
-        if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
-            $lifecycleOwner->close();
         }
         $this->releaseRequest($request);
         $this->activeRequests = max(0, $this->activeRequests - 1);
