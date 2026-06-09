@@ -103,6 +103,23 @@ class Connection {
             return null;
         }
 
+        if ($this->socket instanceof \Socket) {
+            $data = '';
+            $bytes = @socket_recv($this->socket, $data, 65536, MSG_DONTWAIT);
+            if ($bytes === false) {
+                $error = socket_last_error($this->socket);
+                if ($error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) {
+                    return '';
+                }
+                return null;
+            }
+            if ($bytes === 0) {
+                return null;
+            }
+            $this->buffer->append($data);
+            return $data;
+        }
+
         $data = @fread($this->socket, 65536);
 
         if ($data === false || $data === '') {
@@ -142,6 +159,15 @@ class Connection {
     }
 
     public function writeFast(string $data): int {
+        if ($this->socket instanceof \Socket) {
+            $written = @socket_send($this->socket, $data, strlen($data), MSG_DONTWAIT);
+            if ($written === false) {
+                $error = socket_last_error($this->socket);
+                return ($error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) ? 0 : -1;
+            }
+            return $written;
+        }
+
         $written = @fwrite($this->socket, $data);
         return $written === false ? -1 : $written;
     }
@@ -156,9 +182,19 @@ class Connection {
             return -1;
         }
 
-        $written = @fwrite($this->socket, $this->writeBuffer->get());
+        if ($this->socket instanceof \Socket) {
+            $written = @socket_send($this->socket, $this->writeBuffer->get(), $this->writeBuffer->length(), MSG_DONTWAIT);
+        } else {
+            $written = @fwrite($this->socket, $this->writeBuffer->get());
+        }
 
         if ($written === false) {
+            if ($this->socket instanceof \Socket) {
+                $error = socket_last_error($this->socket);
+                if ($error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) {
+                    return 0;
+                }
+            }
             $this->writeBuffer->reset();
             return -1;
         }
@@ -180,7 +216,11 @@ class Connection {
 
     public function close(): void {
         if (\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
-            @fclose($this->socket);
+            if ($this->socket instanceof \Socket) {
+                @socket_close($this->socket);
+            } else {
+                @fclose($this->socket);
+            }
             $this->socket = null;
         }
         if ($this->bufferPool) {

@@ -298,6 +298,7 @@ class HttpServer {
     }
 
     public function start(): void {
+        ServerTUI::setEnabled(!$this->quiet);
         $this->startTime = microtime(true);
         $this->prepareStatsDir();
         $this->createServer();
@@ -310,7 +311,7 @@ class HttpServer {
     }
 
     private function createServer(): void {
-        $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create();
+        $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create($this->config['socket_driver'] ?? 'auto');
         $driverName = (new \ReflectionClass($this->socketDriver))->getShortName();
         if (!$this->quiet && $this->workerId === 1) {
             error_log("Socket Driver: $driverName");
@@ -568,25 +569,32 @@ class HttpServer {
         }
 
         $buffer = $conn->getBuffer();
-        $fastParsed = $this->parseRequestLineFast($buffer);
-        if ($fastParsed !== null) {
-            $fastResponse = $this->fastPath->get($fastParsed[0], $fastParsed[1]);
-            if ($fastResponse !== null) {
-                $lineEnd = strpos($buffer, "\r\n\r\n");
-                if ($lineEnd !== false) {
-                    $conn->consumeBuffer($lineEnd + 4);
-                    $this->totalRequests++;
-                    
-                    $shouldClose = $conn->getRequestCount() >= $this->maxRequestsPerConnection - 1;
-                    if ($shouldClose) {
-                        $fastResponse = str_replace("Connection: keep-alive", "Connection: close", $fastResponse);
-                    }
-                    
-                    if ($conn->writeFast($fastResponse) <= 0 || $shouldClose) {
-                        $this->closeConnection($conn);
-                    }
-                    return;
+        $fastResponse = null;
+        if (strncmp($buffer, "GET / ", 6) === 0) {
+            $fastResponse = $this->fastPath->get('GET', '/');
+        } else {
+            $fastParsed = $this->parseRequestLineFast($buffer);
+            if ($fastParsed !== null) {
+                $fastResponse = $this->fastPath->get($fastParsed[0], $fastParsed[1]);
+            }
+        }
+        if ($fastResponse !== null) {
+            $lineEnd = strpos($buffer, "\r\n\r\n");
+            if ($lineEnd !== false) {
+                $rawLength = $lineEnd + 4;
+                $conn->consumeBuffer($rawLength);
+                $conn->incrementRequestCount();
+                $this->totalRequests++;
+                
+                $shouldClose = $conn->getRequestCount() >= $this->maxRequestsPerConnection;
+                if ($shouldClose) {
+                    $fastResponse = str_replace("Connection: keep-alive", "Connection: close", $fastResponse);
                 }
+                
+                if ($conn->writeFast($fastResponse) <= 0 || $shouldClose) {
+                    $this->closeConnection($conn);
+                }
+                return;
             }
         }
 
@@ -2001,7 +2009,11 @@ class HttpServer {
         // Close server socket
         if ($this->serverSocket && \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             $this->loop->removeReader($this->serverSocket);
-            @fclose($this->serverSocket);
+            if ($this->serverSocket instanceof \Socket) {
+                @socket_close($this->serverSocket);
+            } else {
+                @fclose($this->serverSocket);
+            }
         }
         $this->serverSocket = null;
         $this->accepting = false;
