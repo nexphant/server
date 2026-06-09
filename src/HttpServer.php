@@ -36,6 +36,14 @@ class HttpServer {
     private ?\Nexph\Server\Socket\SocketDriverInterface $socketDriver = null;
     private bool $quiet = false;
     private ?AdaptiveRuntime $adaptive = null;
+    private ?\EventBase $directBase = null;
+    private array $directReadEvents = [];
+    private array $directWriteEvents = [];
+    private array $directSignalEvents = [];
+    private array $directBuffers = [];
+    private array $directWriteBuffers = [];
+    private array $directRequestCounts = [];
+    private array $directSockets = [];
 
     // Config
     private string $host = '0.0.0.0';
@@ -302,8 +310,15 @@ class HttpServer {
     public function start(): void {
         ServerTUI::setEnabled(!$this->quiet);
         $this->startTime = microtime(true);
+        if ($this->shouldUseDirectFastLoop()) {
+            $this->createServer(false);
+            ServerTUI::serverStarted($this->host, $this->port);
+            $this->runDirectFastLoop();
+            return;
+        }
+
         $this->prepareStatsDir();
-        $this->createServer();
+        $this->createServer(true);
         $this->setupSignals();
         $this->setupTimers();
 
@@ -312,7 +327,7 @@ class HttpServer {
         $this->loop->run();
     }
 
-    private function createServer(): void {
+    private function createServer(bool $attachReader = true): void {
         $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create(
             $this->config['socket_driver'] ?? 'auto',
             ['reuse_port' => $this->config['reuse_port'] ?? (($this->config['profile'] ?? '') === 'low_latency' ? false : true)]
@@ -328,9 +343,175 @@ class HttpServer {
             throw new \RuntimeException("Failed to start server on {$this->host}:{$this->port}");
         }
 
+        if (!$attachReader) {
+            return;
+        }
+
         $this->loop->addReader($this->serverSocket, function ($socket) {
             $this->acceptConnections();
         });
+    }
+
+    private function shouldUseDirectFastLoop(): bool {
+        return $this->performanceMode &&
+            extension_loaded('event') &&
+            extension_loaded('sockets') &&
+            empty($this->middleware) &&
+            empty($this->webSocketHandlers) &&
+            $this->fastEngine->hasRoutes() &&
+            in_array((string) ($this->config['socket_driver'] ?? 'auto'), ['auto', 'native'], true);
+    }
+
+    private function runDirectFastLoop(): void {
+        $this->directBase = new \EventBase();
+        $accept = new \Event($this->directBase, $this->serverSocket, \Event::READ | \Event::PERSIST, function (): void {
+            $this->directAcceptConnections();
+        });
+        $accept->add();
+        $this->directSignal(SIGINT);
+        $this->directSignal(SIGTERM);
+        $this->directBase->loop();
+    }
+
+    private function directSignal(int $signal): void {
+        if (!defined('SIGINT')) {
+            return;
+        }
+        $event = \Event::signal($this->directBase, $signal, function (): void {
+            $this->directBase?->stop();
+        });
+        $event->add();
+        $this->directSignalEvents[$signal] = $event;
+    }
+
+    private function directAcceptConnections(): void {
+        for ($i = 0; $i < $this->maxAcceptPerTick; $i++) {
+            $client = $this->socketDriver?->accept($this->serverSocket);
+            if (!$client) {
+                return;
+            }
+            if (count($this->directSockets) >= $this->maxConnections) {
+                @socket_close($client);
+                continue;
+            }
+            $id = spl_object_id($client);
+            $this->directSockets[$id] = $client;
+            $this->directBuffers[$id] = '';
+            $this->directWriteBuffers[$id] = '';
+            $this->directRequestCounts[$id] = 0;
+            $event = new \Event($this->directBase, $client, \Event::READ | \Event::PERSIST, function () use ($client, $id): void {
+                $this->directRead($client, $id);
+            });
+            $event->add();
+            $this->directReadEvents[$id] = $event;
+        }
+    }
+
+    private function directRead(\Socket $socket, int $id): void {
+        $chunk = '';
+        $bytes = @socket_recv($socket, $chunk, 65536, MSG_DONTWAIT);
+        if ($bytes === false) {
+            $error = socket_last_error($socket);
+            if ($error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) {
+                return;
+            }
+            $this->directClose($id);
+            return;
+        }
+        if ($bytes === 0) {
+            $this->directClose($id);
+            return;
+        }
+        $this->directBuffers[$id] .= $chunk;
+
+        while (($this->directBuffers[$id] ?? '') !== '') {
+            $buffer = $this->directBuffers[$id];
+            $match = $this->fastEngine->match($buffer);
+            if ($match === null) {
+                if (strpos($buffer, "\r\n\r\n") === false) {
+                    return;
+                }
+                $this->directWrite($socket, $id, "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nContent-Length: 21\r\nConnection: close\r\n\r\n{\"error\":\"Not Found\"}", true);
+                return;
+            }
+
+            $this->directBuffers[$id] = substr($buffer, $match['consumed']);
+            $this->directRequestCounts[$id]++;
+            $keepAlive = $match['keep_alive'] && $this->directRequestCounts[$id] < $this->maxRequestsPerConnection;
+            $this->directWrite($socket, $id, $this->fastEngine->getResponse($match['key'], $keepAlive), !$keepAlive);
+            if (!$keepAlive || ($this->directWriteBuffers[$id] ?? '') !== '') {
+                return;
+            }
+        }
+    }
+
+    private function directWrite(\Socket $socket, int $id, string $data, bool $closeWhenDone): void {
+        $written = @socket_send($socket, $data, strlen($data), MSG_DONTWAIT);
+        if ($written === false) {
+            $error = socket_last_error($socket);
+            if ($error !== SOCKET_EAGAIN && $error !== SOCKET_EWOULDBLOCK) {
+                $this->directClose($id);
+                return;
+            }
+            $written = 0;
+        }
+        if ($written < strlen($data)) {
+            $this->directWriteBuffers[$id] .= substr($data, $written);
+            $this->directFlushLater($socket, $id, $closeWhenDone);
+            return;
+        }
+        if ($closeWhenDone) {
+            $this->directClose($id);
+        }
+    }
+
+    private function directFlushLater(\Socket $socket, int $id, bool $closeWhenDone): void {
+        if (isset($this->directWriteEvents[$id])) {
+            return;
+        }
+        $event = new \Event($this->directBase, $socket, \Event::WRITE | \Event::PERSIST, function () use ($socket, $id, $closeWhenDone): void {
+            $buffer = $this->directWriteBuffers[$id] ?? '';
+            if ($buffer === '') {
+                $this->directWriteEvents[$id]->del();
+                unset($this->directWriteEvents[$id]);
+                if ($closeWhenDone) {
+                    $this->directClose($id);
+                }
+                return;
+            }
+            $written = @socket_send($socket, $buffer, strlen($buffer), MSG_DONTWAIT);
+            if ($written === false) {
+                $error = socket_last_error($socket);
+                if ($error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) {
+                    return;
+                }
+                $this->directClose($id);
+                return;
+            }
+            $this->directWriteBuffers[$id] = substr($buffer, $written);
+        });
+        $event->add();
+        $this->directWriteEvents[$id] = $event;
+    }
+
+    private function directClose(int $id): void {
+        if (isset($this->directReadEvents[$id])) {
+            $this->directReadEvents[$id]->del();
+            unset($this->directReadEvents[$id]);
+        }
+        if (isset($this->directWriteEvents[$id])) {
+            $this->directWriteEvents[$id]->del();
+            unset($this->directWriteEvents[$id]);
+        }
+        if (isset($this->directSockets[$id])) {
+            @socket_close($this->directSockets[$id]);
+        }
+        unset(
+            $this->directSockets[$id],
+            $this->directBuffers[$id],
+            $this->directWriteBuffers[$id],
+            $this->directRequestCounts[$id]
+        );
     }
 
     private function setupSignals(): void {
@@ -2913,17 +3094,20 @@ class HttpServer {
     public function fastJson(string $method, string $path, array|string $payload, int $status = 200, array $headers = []): self {
         $raw = RawResponseBuilder::json($status, $payload, $headers);
         $this->fastPath->register($method, $path, $raw);
+        $this->fastEngine->register($method, $path, $raw);
         return $this;
     }
 
     public function fastText(string $method, string $path, string $body, int $status = 200, array $headers = []): self {
         $raw = RawResponseBuilder::text($status, $body, $headers);
         $this->fastPath->register($method, $path, $raw);
+        $this->fastEngine->register($method, $path, $raw);
         return $this;
     }
 
     public function fastRaw(string $method, string $path, string $rawResponse): self {
         $this->fastPath->register($method, $path, $rawResponse);
+        $this->fastEngine->register($method, $path, $rawResponse);
         return $this;
     }
 

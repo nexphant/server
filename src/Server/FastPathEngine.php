@@ -5,6 +5,7 @@ namespace Nexph\Server\Server;
 class FastPathEngine {
     private array $routes = [];
     private array $prebuilt = [];
+    private array $startLines = [];
     private array $headerCache = [];
     private int $cacheSize = 0;
     private const MAX_CACHE = 512;
@@ -13,6 +14,7 @@ class FastPathEngine {
     public function register(string $method, string $path, string $rawResponse): void {
         $key = "$method $path";
         $this->routes[$key] = $rawResponse;
+        $this->startLines["$method $path HTTP/1.1\r\n"] = $key;
         
         $this->prebuilt[$key . ' keep-alive'] = str_replace(
             "Connection: close",
@@ -27,6 +29,10 @@ class FastPathEngine {
         );
     }
 
+    public function hasRoutes(): bool {
+        return $this->routes !== [];
+    }
+
     public function matchExact(string $buffer): ?array {
         $headerEnd = strpos($buffer, "\r\n\r\n");
         if ($headerEnd === false) {
@@ -34,31 +40,40 @@ class FastPathEngine {
         }
 
         $headerLen = $headerEnd + 4;
+        foreach ($this->startLines as $start => $key) {
+            if (strncmp($buffer, $start, strlen($start)) === 0) {
+                return [
+                    'key' => $key,
+                    'keep_alive' => stripos($buffer, "Connection: close") === false,
+                    'consumed' => $headerLen,
+                ];
+            }
+        }
+
         $header = substr($buffer, 0, $headerLen);
 
         if ($headerLen <= self::MAX_HEADER_LEN && isset($this->headerCache[$header])) {
             return $this->headerCache[$header];
         }
 
-        $end = strpos($buffer, "\r\n");
-        if ($end === false || $end > 128) {
+        $sp1 = strpos($buffer, ' ');
+        if ($sp1 === false || $sp1 > 16) {
             return null;
         }
 
-        $line = substr($buffer, 0, $end);
-        $parts = explode(' ', $line, 3);
-        
-        if (count($parts) < 3) {
+        $sp2 = strpos($buffer, ' ', $sp1 + 1);
+        if ($sp2 === false || $sp2 > 128) {
             return null;
         }
 
-        [$method, $uri] = $parts;
-        
-        if (strpos($uri, '?') !== false) {
+        $uriStart = $sp1 + 1;
+        $uriLen = $sp2 - $uriStart;
+        $queryPos = strpos($buffer, '?', $uriStart);
+        if ($uriLen <= 0 || ($queryPos !== false && $queryPos < $sp2)) {
             return null;
         }
 
-        $key = "$method $uri";
+        $key = substr($buffer, 0, $sp1) . ' ' . substr($buffer, $uriStart, $uriLen);
         
         if (!isset($this->routes[$key])) {
             return null;
