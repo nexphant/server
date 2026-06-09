@@ -313,7 +313,10 @@ class HttpServer {
     }
 
     private function createServer(): void {
-        $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create($this->config['socket_driver'] ?? 'auto');
+        $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create(
+            $this->config['socket_driver'] ?? 'auto',
+            ['reuse_port' => $this->config['reuse_port'] ?? (($this->config['profile'] ?? '') === 'low_latency' ? false : true)]
+        );
         $driverName = (new \ReflectionClass($this->socketDriver))->getShortName();
         if (!$this->quiet && $this->workerId === 1) {
             error_log("Socket Driver: $driverName");
@@ -589,7 +592,19 @@ class HttpServer {
             $keepAlive = $match['keep_alive'] && $conn->getRequestCount() < $this->maxRequestsPerConnection;
             $response = $this->fastEngine->getResponse($match['key'], $keepAlive);
             
-            if ($conn->writeFast($response) <= 0 || !$keepAlive) {
+            $written = $conn->writeFast($response);
+            if ($written < 0) {
+                $this->closeConnection($conn);
+                return;
+            }
+            
+            if ($written < strlen($response)) {
+                $conn->write(substr($response, $written));
+                $this->flushPending($conn, !$keepAlive);
+                return;
+            }
+            
+            if (!$keepAlive) {
                 $this->closeConnection($conn);
             }
             return;

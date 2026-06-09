@@ -5,7 +5,10 @@ namespace Nexph\Server\Server;
 class FastPathEngine {
     private array $routes = [];
     private array $prebuilt = [];
-    private array $exactCache = [];
+    private array $headerCache = [];
+    private int $cacheSize = 0;
+    private const MAX_CACHE = 512;
+    private const MAX_HEADER_LEN = 2048;
 
     public function register(string $method, string $path, string $rawResponse): void {
         $key = "$method $path";
@@ -25,8 +28,16 @@ class FastPathEngine {
     }
 
     public function matchExact(string $buffer): ?array {
-        if (isset($this->exactCache[$buffer])) {
-            return $this->exactCache[$buffer];
+        $headerEnd = strpos($buffer, "\r\n\r\n");
+        if ($headerEnd === false) {
+            return null;
+        }
+
+        $headerLen = $headerEnd + 4;
+        $header = substr($buffer, 0, $headerLen);
+
+        if ($headerLen <= self::MAX_HEADER_LEN && isset($this->headerCache[$header])) {
+            return $this->headerCache[$header];
         }
 
         $end = strpos($buffer, "\r\n");
@@ -53,22 +64,22 @@ class FastPathEngine {
             return null;
         }
 
-        $headerEnd = strpos($buffer, "\r\n\r\n");
-        if ($headerEnd === false) {
-            return null;
-        }
-
         $keepAlive = stripos($buffer, "Connection: keep-alive") !== false 
                   || stripos($buffer, "Connection: close") === false;
 
         $result = [
             'key' => $key,
             'keep_alive' => $keepAlive,
-            'consumed' => $headerEnd + 4,
+            'consumed' => $headerLen,
         ];
 
-        if (strlen($buffer) < 512) {
-            $this->exactCache[$buffer] = $result;
+        if ($headerLen <= self::MAX_HEADER_LEN) {
+            if ($this->cacheSize >= self::MAX_CACHE) {
+                $this->headerCache = array_slice($this->headerCache, -256, null, true);
+                $this->cacheSize = 256;
+            }
+            $this->headerCache[$header] = $result;
+            $this->cacheSize++;
         }
 
         return $result;

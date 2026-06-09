@@ -6,12 +6,12 @@ use Nexph\Support\Extension\ExtensionDetector;
 
 class SocketDriverFactory
 {
-    public static function create(?string $preferred = null): SocketDriverInterface
+    public static function create(?string $preferred = null, array $config = []): SocketDriverInterface
     {
         $override = getenv('NEXPH_SOCKET') ?: $preferred;
         
         if (($override === 'native' || $override === 'auto') && ExtensionDetector::has('sockets')) {
-            return new NativeSocketDriver();
+            return new NativeSocketDriver($config);
         }
 
         return new StreamSocketDriver();

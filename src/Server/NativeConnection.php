@@ -87,7 +87,8 @@ class NativeConnection {
             return 0;
         }
 
-        $written = @socket_send($this->socket, $this->writeBuffer, $remaining, MSG_DONTWAIT, $this->writeOffset);
+        $chunk = $this->writeOffset === 0 ? $this->writeBuffer : substr($this->writeBuffer, $this->writeOffset);
+        $written = @socket_send($this->socket, $chunk, strlen($chunk), MSG_DONTWAIT);
         
         if ($written === false) {
             $error = socket_last_error($this->socket);

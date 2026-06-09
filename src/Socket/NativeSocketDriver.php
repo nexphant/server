@@ -4,11 +4,14 @@ namespace Nexph\Server\Socket;
 
 class NativeSocketDriver implements SocketDriverInterface
 {
-    public function __construct()
+    private bool $reusePort = true;
+
+    public function __construct(array $config = [])
     {
         if (!extension_loaded('sockets')) {
             throw new \RuntimeException('ext-sockets is not available');
         }
+        $this->reusePort = (bool) ($config['reuse_port'] ?? true);
     }
 
     public function listen(string $host, int $port): mixed
@@ -20,7 +23,9 @@ class NativeSocketDriver implements SocketDriverInterface
         }
         
         socket_set_option($socket, SOL_SOCKET, SO_REUSEADDR, 1);
-        socket_set_option($socket, SOL_SOCKET, SO_REUSEPORT, 1);
+        if ($this->reusePort && defined('SO_REUSEPORT')) {
+            socket_set_option($socket, SOL_SOCKET, SO_REUSEPORT, 1);
+        }
         socket_set_option($socket, SOL_TCP, TCP_NODELAY, 1);
         socket_set_option($socket, SOL_SOCKET, SO_RCVBUF, 262144);
         socket_set_option($socket, SOL_SOCKET, SO_SNDBUF, 262144);
