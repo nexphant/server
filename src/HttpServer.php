@@ -32,6 +32,7 @@ class HttpServer {
     private ObjectPool $requestPool;
     private BufferPool $bufferPool;
     private FastPathRegistry $fastPath;
+    private Server\FastPathEngine $fastEngine;
     private ?\Nexph\Server\Socket\SocketDriverInterface $socketDriver = null;
     private bool $quiet = false;
     private ?AdaptiveRuntime $adaptive = null;
@@ -237,6 +238,7 @@ class HttpServer {
         }
         $this->httpLatencyBuckets['+Inf'] = 0;
         $this->fastPath = new FastPathRegistry();
+        $this->fastEngine = new Server\FastPathEngine();
         Coroutine::setLoop($this->loop);
 
         // Adaptive runtime primitives
@@ -577,6 +579,22 @@ class HttpServer {
         }
 
         $buffer = $conn->getBuffer();
+        
+        $match = $this->fastEngine->match($buffer);
+        if ($match !== null) {
+            $conn->consumeBuffer($match['consumed']);
+            $conn->incrementRequestCount();
+            $this->totalRequests++;
+            
+            $keepAlive = $match['keep_alive'] && $conn->getRequestCount() < $this->maxRequestsPerConnection;
+            $response = $this->fastEngine->getResponse($match['key'], $keepAlive);
+            
+            if ($conn->writeFast($response) <= 0 || !$keepAlive) {
+                $this->closeConnection($conn);
+            }
+            return;
+        }
+        
         $fastResponse = null;
         if (strncmp($buffer, "GET / ", 6) === 0) {
             $fastResponse = $this->fastPath->get('GET', '/');
