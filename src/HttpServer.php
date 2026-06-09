@@ -385,6 +385,7 @@ class HttpServer {
 
     private function shouldUseDirectFastLoop(): bool {
         return !$this->runtimeSafetyEnabled &&
+            ($this->config['direct_fast_loop'] ?? false) &&
             extension_loaded('event') &&
             extension_loaded('sockets') &&
             empty($this->middleware) &&
