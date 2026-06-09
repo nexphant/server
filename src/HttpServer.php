@@ -45,6 +45,7 @@ class HttpServer {
     private array $directWriteBuffers = [];
     private array $directRequestCounts = [];
     private array $directSockets = [];
+    private int $directSocketCount = 0;
 
     // Config
     private string $host = '0.0.0.0';
@@ -432,12 +433,13 @@ class HttpServer {
             if (!$client) {
                 return;
             }
-            if (count($this->directSockets) >= $this->maxConnections) {
+            if ($this->directSocketCount >= $this->maxConnections) {
                 @socket_close($client);
                 continue;
             }
             $id = spl_object_id($client);
             $this->directSockets[$id] = $client;
+            $this->directSocketCount++;
             $this->directBuffers[$id] = '';
             $this->directWriteBuffers[$id] = '';
             $this->directRequestCounts[$id] = 0;
@@ -466,7 +468,7 @@ class HttpServer {
         }
         $this->directBuffers[$id] .= $chunk;
 
-        while (($this->directBuffers[$id] ?? '') !== '') {
+        while ($this->directBuffers[$id] !== '') {
             $buffer = $this->directBuffers[$id];
             $match = $this->fastEngine->match($buffer);
             if ($match === null) {
@@ -477,7 +479,7 @@ class HttpServer {
                 return;
             }
 
-            $this->directBuffers[$id] = substr($buffer, $match['consumed']);
+            $this->directBuffers[$id] = $match['consumed'] === strlen($buffer) ? '' : substr($buffer, $match['consumed']);
             $this->directRequestCounts[$id]++;
             $keepAlive = $match['keep_alive'] && $this->directRequestCounts[$id] < $this->maxRequestsPerConnection;
             $this->directWrite($socket, $id, $this->fastEngine->getResponse($match['key'], $keepAlive), !$keepAlive);
@@ -488,7 +490,8 @@ class HttpServer {
     }
 
     private function directWrite(\Socket $socket, int $id, string $data, bool $closeWhenDone): void {
-        $written = @socket_send($socket, $data, strlen($data), MSG_DONTWAIT);
+        $length = strlen($data);
+        $written = @socket_send($socket, $data, $length, MSG_DONTWAIT);
         if ($written === false) {
             $error = socket_last_error($socket);
             if ($error !== SOCKET_EAGAIN && $error !== SOCKET_EWOULDBLOCK) {
@@ -497,7 +500,7 @@ class HttpServer {
             }
             $written = 0;
         }
-        if ($written < strlen($data)) {
+        if ($written < $length) {
             $this->directWriteBuffers[$id] .= substr($data, $written);
             $this->directFlushLater($socket, $id, $closeWhenDone);
             return;
@@ -547,6 +550,7 @@ class HttpServer {
         }
         if (isset($this->directSockets[$id])) {
             @socket_close($this->directSockets[$id]);
+            $this->directSocketCount--;
         }
         unset(
             $this->directSockets[$id],

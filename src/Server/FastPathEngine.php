@@ -4,25 +4,29 @@ namespace Nexph\Server\Server;
 
 class FastPathEngine {
     private array $routes = [];
-    private array $prebuilt = [];
+    private array $responses = [];
     private array $startLines = [];
+    private array $startLineLengths = [];
     private array $headerCache = [];
     private int $cacheSize = 0;
-    private const MAX_CACHE = 512;
+    private const MAX_CACHE = 4096;
+    private const CACHE_RETAIN = 2048;
     private const MAX_HEADER_LEN = 2048;
 
     public function register(string $method, string $path, string $rawResponse): void {
         $key = "$method $path";
         $this->routes[$key] = $rawResponse;
-        $this->startLines["$method $path HTTP/1.1\r\n"] = $key;
+        $start = "$method $path HTTP/1.1\r\n";
+        $this->startLines[$start] = $key;
+        $this->startLineLengths[$start] = strlen($start);
         
-        $this->prebuilt[$key . ' keep-alive'] = str_replace(
+        $this->responses[$key][1] = str_replace(
             "Connection: close",
             "Connection: keep-alive",
             $rawResponse
         );
         
-        $this->prebuilt[$key . ' close'] = str_replace(
+        $this->responses[$key][0] = str_replace(
             "Connection: keep-alive",
             "Connection: close",
             $rawResponse
@@ -40,20 +44,27 @@ class FastPathEngine {
         }
 
         $headerLen = $headerEnd + 4;
+        if ($headerLen <= self::MAX_HEADER_LEN) {
+            $header = substr($buffer, 0, $headerLen);
+            if (isset($this->headerCache[$header])) {
+                return $this->headerCache[$header];
+            }
+        } else {
+            $header = null;
+        }
+
         foreach ($this->startLines as $start => $key) {
-            if (strncmp($buffer, $start, strlen($start)) === 0) {
-                return [
+            if (strncmp($buffer, $start, $this->startLineLengths[$start]) === 0) {
+                $result = [
                     'key' => $key,
                     'keep_alive' => stripos($buffer, "Connection: close") === false,
                     'consumed' => $headerLen,
                 ];
+                if ($header !== null) {
+                    $this->rememberHeader($header, $result);
+                }
+                return $result;
             }
-        }
-
-        $header = substr($buffer, 0, $headerLen);
-
-        if ($headerLen <= self::MAX_HEADER_LEN && isset($this->headerCache[$header])) {
-            return $this->headerCache[$header];
         }
 
         $sp1 = strpos($buffer, ' ');
@@ -88,16 +99,20 @@ class FastPathEngine {
             'consumed' => $headerLen,
         ];
 
-        if ($headerLen <= self::MAX_HEADER_LEN) {
-            if ($this->cacheSize >= self::MAX_CACHE) {
-                $this->headerCache = array_slice($this->headerCache, -256, null, true);
-                $this->cacheSize = 256;
-            }
-            $this->headerCache[$header] = $result;
-            $this->cacheSize++;
+        if ($header !== null) {
+            $this->rememberHeader($header, $result);
         }
 
         return $result;
+    }
+
+    private function rememberHeader(string $header, array $result): void {
+        if ($this->cacheSize >= self::MAX_CACHE) {
+            $this->headerCache = array_slice($this->headerCache, -self::CACHE_RETAIN, null, true);
+            $this->cacheSize = self::CACHE_RETAIN;
+        }
+        $this->headerCache[$header] = $result;
+        $this->cacheSize++;
     }
 
     public function match(string $buffer): ?array {
@@ -105,7 +120,6 @@ class FastPathEngine {
     }
 
     public function getResponse(string $key, bool $keepAlive): string {
-        $variant = $key . ($keepAlive ? ' keep-alive' : ' close');
-        return $this->prebuilt[$variant] ?? $this->routes[$key] ?? '';
+        return $this->responses[$key][$keepAlive ? 1 : 0] ?? $this->routes[$key] ?? '';
     }
 }
