@@ -100,7 +100,7 @@ class HttpServer {
     private bool $objectTrackingEnabled = false;
     private bool $poolSafetyEnabled = false;
     private bool $hotPathCacheEnabled = false;
-    private bool $performanceMode = false;
+    private bool $runtimeSafetyEnabled = true;
     private bool $routeLatencyEnabled = false;
     private bool $histogramEnabled = true;
     private int $metricsSampleRate = 1;
@@ -200,10 +200,10 @@ class HttpServer {
         $this->objectTrackingEnabled = (bool) ($config['object_tracking'] ?? false);
         $this->poolSafetyEnabled = (bool) ($config['pool_safety'] ?? false);
         $this->hotPathCacheEnabled = (float) ($config['hot_path_cache_ttl'] ?? 0.0) > 0.0;
-        $this->performanceMode = (bool) ($config['performance_mode'] ?? false);
-        $this->routeLatencyEnabled = !$this->performanceMode && (bool) ($config['route_latency'] ?? true);
-        $this->histogramEnabled = !$this->performanceMode && (bool) ($config['histogram'] ?? true);
-        $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->performanceMode ? 100 : 1)));
+        $this->runtimeSafetyEnabled = (bool) ($config['runtime_safety'] ?? !($config['performance_mode'] ?? false));
+        $this->routeLatencyEnabled = $this->runtimeSafetyEnabled && (bool) ($config['route_latency'] ?? true);
+        $this->histogramEnabled = $this->runtimeSafetyEnabled && (bool) ($config['histogram'] ?? true);
+        $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 1 : 100)));
 
         $backend = \Nexph\Runtime\EventLoop\EventLoopFactory::create($config['event_loop'] ?? 'auto');
         $backendName = (new \ReflectionClass($backend))->getShortName();
@@ -353,7 +353,7 @@ class HttpServer {
     }
 
     private function shouldUseDirectFastLoop(): bool {
-        return $this->performanceMode &&
+        return !$this->runtimeSafetyEnabled &&
             extension_loaded('event') &&
             extension_loaded('sockets') &&
             empty($this->middleware) &&
@@ -857,7 +857,7 @@ class HttpServer {
             $request->setAttribute('__response_cache_key', $cacheKey);
         }
         $requestContext = '';
-        if ($this->objectTrackingEnabled && !$this->performanceMode) {
+        if ($this->objectTrackingEnabled && $this->runtimeSafetyEnabled) {
             $requestContext = 'request:' . $this->workerId . ':' . $this->totalRequests;
             $request->setAttribute('__runtime_context', $requestContext);
             $this->objectTracker->openContext($requestContext);
@@ -1671,7 +1671,7 @@ class HttpServer {
 
     private function dispatchRequest(ServerRequest $request, ServerResponse $response, Connection $conn): void {
         try {
-            if ($this->performanceMode && empty($this->middleware)) {
+            if (!$this->runtimeSafetyEnabled && empty($this->middleware)) {
                 if ($this->requestHandler) {
                     $result = ($this->requestHandler)($request, $response);
                     if (!($result instanceof \Generator) && ($response->isSent() || $request->getAttribute('__stream_started', false))) {
@@ -1793,7 +1793,7 @@ class HttpServer {
     }
 
     private function finishHttpRequest(ServerRequest $request, ServerResponse $response): void {
-        if (!$this->performanceMode) {
+        if ($this->runtimeSafetyEnabled) {
             $durationMs = max(0.0, (microtime(true) - $request->time) * 1000);
             $this->recordHttpMetrics($request->method, $request->path, $response->getStatus(), $durationMs);
         } else {
@@ -1845,7 +1845,7 @@ class HttpServer {
         $this->httpLatencyMaxMs = max($this->httpLatencyMaxMs, $durationMs);
 
         // Route counting + normalization (expensive)
-        if ($this->routeLatencyEnabled || !$this->performanceMode) {
+        if ($this->routeLatencyEnabled || $this->runtimeSafetyEnabled) {
             $routeKey = $method . ' ' . $this->normalizeMetricPath($path);
             $this->httpRouteCounts[$routeKey] = ($this->httpRouteCounts[$routeKey] ?? 0) + 1;
 

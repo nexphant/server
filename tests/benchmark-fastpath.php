@@ -5,7 +5,7 @@ use Nexph\App;
 require __DIR__ . '/../vendor/autoload.php';
 
 $app = App::create([
-    'performance_mode' => true,
+    'runtime_safety' => false,
     'keep_alive_timeout' => 30,
     'max_requests' => 10000,
 ]);
