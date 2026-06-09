@@ -337,6 +337,11 @@ class HttpServer {
     }
 
     private function setupTimers(): void {
+        $profile = $this->config['runtime_mode'] ?? 'balanced';
+        $features = $this->config['runtime_features'] ?? [];
+        $statsEnabled = $features['stats_file_writes'] ?? true;
+        $metricsEnabled = $features['metrics'] ?? true;
+        
         $lagInterval = 0.5;
         $lastTick = microtime(true);
         $this->loop->addTimer($lagInterval, function () use (&$lastTick, $lagInterval) {
@@ -346,34 +351,35 @@ class HttpServer {
             $this->loopLagMaxMs = max($this->loopLagMaxMs, $lag);
             $lastTick = $now;
 
-            // adaptive: record tick duration and reset fairness counters
             if ($this->adaptive !== null) {
                 $this->adaptive->stats->loopTickDuration = $this->loopLagMs;
                 $this->adaptive->fairness->reset();
             }
         }, periodic: true);
 
-        // TUI uptime ticker
-        $this->loop->addTimer(1.0, function () {
-            ServerTUI::tick();
-        }, periodic: true);
+        if (!$this->quiet && ServerTUI::isEnabled()) {
+            $this->loop->addTimer(1.0, function () {
+                ServerTUI::tick();
+            }, periodic: true);
+        }
 
-        // Cleanup idle connections
         $this->loop->addTimer(1.0, function () {
             $this->cleanupConnections();
         }, periodic: true);
 
-        $this->loop->addTimer(5.0, function () {
-            $this->checkWebSocketHeartbeats();
-        }, periodic: true);
+        if (!empty($this->webSocketHandlers)) {
+            $this->loop->addTimer(5.0, function () {
+                $this->checkWebSocketHeartbeats();
+            }, periodic: true);
+        }
 
-        if ($this->sseHeartbeatInterval > 0) {
+        if (!empty($this->webSocketHandlers) && $this->sseHeartbeatInterval > 0) {
             $this->loop->addTimer((float) $this->sseHeartbeatInterval, function () {
                 $this->sendSseHeartbeats();
             }, periodic: true);
         }
 
-        if ($this->workerCount > 1 || $this->webSocketBusSingleWorker || $this->sseBusSingleWorker) {
+        if (($this->workerCount > 1 || $this->webSocketBusSingleWorker || $this->sseBusSingleWorker) && !empty($this->webSocketHandlers)) {
             if ($this->webSocketBusType === 'file') {
                 $this->loop->addTimer(0.05, function () {
                     $this->pollWebSocketBus();
@@ -398,7 +404,7 @@ class HttpServer {
             }
         }
 
-        if ($this->webSocketBusType === 'redis' && !$this->webSocketRedisBus) {
+        if (!empty($this->webSocketHandlers) && $this->webSocketBusType === 'redis' && !$this->webSocketRedisBus) {
             $this->webSocketRedisBus = new WebSocketRedisBus(
                 (string) ($this->config['websocket_redis_url'] ?? 'redis://127.0.0.1:6379/0'),
                 (string) ($this->config['websocket_redis_channel'] ?? 'nexph:websocket')
@@ -410,7 +416,7 @@ class HttpServer {
             });
         }
 
-        if ($this->sseBusType === 'redis' && !$this->sseRedisBus) {
+        if (!empty($this->webSocketHandlers) && $this->sseBusType === 'redis' && !$this->sseRedisBus) {
             $this->sseRedisBus = new WebSocketRedisBus(
                 (string) ($this->config['sse_redis_url'] ?? $this->config['websocket_redis_url'] ?? 'redis://127.0.0.1:6379/0'),
                 (string) ($this->config['sse_redis_channel'] ?? 'nexph:sse')
@@ -422,18 +428,21 @@ class HttpServer {
             });
         }
 
-        // Memory monitoring
-        $this->loop->addTimer(10.0, function () {
-            $this->memoryMonitor->sample();
-            $this->checkMemoryPressure();
-            if ($this->memoryMonitor->detectLeak()) {
-                $this->log("Warning: Memory leak detected - " . $this->memoryMonitor->getReport());
-            }
-        }, periodic: true);
+        if ($profile !== 'benchmark') {
+            $this->loop->addTimer(10.0, function () {
+                $this->memoryMonitor->sample();
+                $this->checkMemoryPressure();
+                if ($this->memoryMonitor->detectLeak()) {
+                    $this->log("Warning: Memory leak detected - " . $this->memoryMonitor->getReport());
+                }
+            }, periodic: true);
+        }
 
-        $this->loop->addTimer(1.0, function () {
-            $this->publishStats();
-        }, periodic: true);
+        if ($statsEnabled) {
+            $this->loop->addTimer(1.0, function () {
+                $this->publishStats();
+            }, periodic: true);
+        }
 
         if ($this->adaptive !== null) {
             $this->loop->addTimer(0.25, function () {
@@ -450,7 +459,6 @@ class HttpServer {
             $this->objectTracker->cleanupContexts();
         }, periodic: true);
 
-        // Stats logging
         if ($this->debug) {
             $this->loop->addTimer(30.0, function () {
                 $this->logStats();

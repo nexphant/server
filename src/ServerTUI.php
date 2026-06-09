@@ -36,6 +36,10 @@ class ServerTUI {
         self::$enabled = $enabled;
     }
 
+    public static function isEnabled(): bool {
+        return self::$enabled;
+    }
+
     public static function serverStarted(string $host, int $port): void {
         if (!self::$enabled) return;
         if (self::$workerId !== 1) return;
