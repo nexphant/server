@@ -206,10 +206,10 @@ class HttpServer {
         $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 1 : 100)));
 
         $backend = \Nexph\Runtime\EventLoop\EventLoopFactory::create($config['event_loop'] ?? 'auto');
-        $backendName = (new \ReflectionClass($backend))->getShortName();
-        if (!($config['quiet'] ?? false) && ($config['worker_id'] ?? 1) === 1) {
-            error_log("Event Loop: $backendName");
-        }
+        // $backendName = (new \ReflectionClass($backend))->getShortName();
+        // if (!($config['quiet'] ?? false) && ($config['worker_id'] ?? 1) === 1) {
+        //     error_log("Event Loop: $backendName");
+        // }
         
         $this->loop = new EventLoop($backend);
         $this->loop->setMaxDeferred((int) ($config['max_deferred'] ?? 100000));
@@ -296,14 +296,45 @@ class HttpServer {
     public function setWorkerInfo(int $workerId, int $workerCount): void {
         $this->workerId = max(1, $workerId);
         $this->workerCount = max(1, $workerCount);
+        $this->config['worker_id'] = $this->workerId;
+        $this->config['worker_count'] = $this->workerCount;
         $this->webSocketBusOffset = is_file($this->webSocketBusFile) ? (int) filesize($this->webSocketBusFile) : 0;
         $this->sseBusOffset = is_file($this->sseBusFile) ? (int) filesize($this->sseBusFile) : 0;
         ServerTUI::setWorkerInfo($workerId, $workerCount);
     }
 
+    public function configure(array $config): self {
+        $this->config = array_merge($this->config, $config);
+        $this->host = $this->config['host'] ?? $this->host;
+        $this->port = $this->config['port'] ?? $this->port;
+        $this->maxConnections = (int) ($this->config['max_connections'] ?? $this->maxConnections);
+        $this->maxAcceptPerTick = (int) ($this->config['max_accept_per_tick'] ?? $this->maxAcceptPerTick);
+        $this->quiet = (bool) ($this->config['quiet'] ?? $this->quiet);
+        $this->keepAliveTimeout = (int) ($this->config['keep_alive_timeout'] ?? $this->keepAliveTimeout);
+        $this->maxRequestsPerConnection = (int) ($this->config['max_requests'] ?? $this->maxRequestsPerConnection);
+        $this->maxRequestSize = (int) ($this->config['max_request_size'] ?? $this->maxRequestSize);
+        $this->maxWriteBufferSize = (int) ($this->config['max_write_buffer_size'] ?? $this->maxWriteBufferSize);
+        $this->backlog = (int) ($this->config['backlog'] ?? $this->backlog);
+        $this->workerId = (int) ($this->config['worker_id'] ?? $this->workerId);
+        $this->workerCount = (int) ($this->config['worker_count'] ?? $this->workerCount);
+        $this->runtimeSafetyEnabled = (bool) ($this->config['runtime_safety'] ?? !($this->config['performance_mode'] ?? false));
+        $this->routeLatencyEnabled = $this->runtimeSafetyEnabled && (bool) ($this->config['route_latency'] ?? true);
+        $this->histogramEnabled = $this->runtimeSafetyEnabled && (bool) ($this->config['histogram'] ?? true);
+        $this->metricsSampleRate = max(1, (int) ($this->config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 1 : 100)));
+        $this->loop->setMaxDeferred((int) ($this->config['max_deferred'] ?? 100000));
+        $this->loop->setFairnessLimits(
+            (int) ($this->config['max_read_callbacks_per_tick'] ?? 512),
+            (int) ($this->config['max_write_callbacks_per_tick'] ?? 512),
+            (int) ($this->config['max_deferred_per_tick'] ?? 512)
+        );
+        return $this;
+    }
+
     public function setAddress(string $host, int $port): self {
         $this->host = $host;
         $this->port = $port;
+        $this->config['host'] = $host;
+        $this->config['port'] = $port;
         return $this;
     }
 
@@ -332,10 +363,10 @@ class HttpServer {
             $this->config['socket_driver'] ?? 'auto',
             ['reuse_port' => $this->config['reuse_port'] ?? (($this->config['profile'] ?? '') === 'low_latency' ? false : true)]
         );
-        $driverName = (new \ReflectionClass($this->socketDriver))->getShortName();
-        if (!$this->quiet && $this->workerId === 1) {
-            error_log("Socket Driver: $driverName");
-        }
+        // $driverName = (new \ReflectionClass($this->socketDriver))->getShortName();
+        // if (!$this->quiet && $this->workerId === 1) {
+        //     error_log("Socket Driver: $driverName");
+        // }
 
         $this->serverSocket = $this->socketDriver->listen($this->host, $this->port);
 
