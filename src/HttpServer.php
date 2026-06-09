@@ -36,6 +36,7 @@ class HttpServer {
     private ?\Nexph\Server\Socket\SocketDriverInterface $socketDriver = null;
     private bool $quiet = false;
     private ?AdaptiveRuntime $adaptive = null;
+    private ?\Nexph\Lifecycle\Owner $workerOwner = null;
     private ?\EventBase $directBase = null;
     private array $directReadEvents = [];
     private array $directWriteEvents = [];
@@ -201,6 +202,9 @@ class HttpServer {
         $this->poolSafetyEnabled = (bool) ($config['pool_safety'] ?? false);
         $this->hotPathCacheEnabled = (float) ($config['hot_path_cache_ttl'] ?? 0.0) > 0.0;
         $this->runtimeSafetyEnabled = (bool) ($config['runtime_safety'] ?? !($config['performance_mode'] ?? false));
+        if (isset($config['runtime_discipline'])) {
+            $this->runtimeSafetyEnabled = (bool) $config['runtime_discipline'];
+        }
         $this->routeLatencyEnabled = $this->runtimeSafetyEnabled && (bool) ($config['route_latency'] ?? true);
         $this->histogramEnabled = $this->runtimeSafetyEnabled && (bool) ($config['histogram'] ?? true);
         $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 1 : 100)));
@@ -318,6 +322,9 @@ class HttpServer {
         $this->workerId = (int) ($this->config['worker_id'] ?? $this->workerId);
         $this->workerCount = (int) ($this->config['worker_count'] ?? $this->workerCount);
         $this->runtimeSafetyEnabled = (bool) ($this->config['runtime_safety'] ?? !($this->config['performance_mode'] ?? false));
+        if (isset($this->config['runtime_discipline'])) {
+            $this->runtimeSafetyEnabled = (bool) $this->config['runtime_discipline'];
+        }
         $this->routeLatencyEnabled = $this->runtimeSafetyEnabled && (bool) ($this->config['route_latency'] ?? true);
         $this->histogramEnabled = $this->runtimeSafetyEnabled && (bool) ($this->config['histogram'] ?? true);
         $this->metricsSampleRate = max(1, (int) ($this->config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 1 : 100)));
@@ -341,6 +348,9 @@ class HttpServer {
     public function start(): void {
         ServerTUI::setEnabled(!$this->quiet);
         $this->startTime = microtime(true);
+        $this->workerOwner ??= class_exists('\Nexph\Lifecycle\Lifecycle') && $this->runtimeSafetyEnabled
+            ? \Nexph\Lifecycle\Lifecycle::worker()
+            : null;
         if ($this->shouldUseDirectFastLoop()) {
             $this->createServer(false);
             ServerTUI::serverStarted($this->host, $this->port);
@@ -896,6 +906,10 @@ class HttpServer {
             $this->objectTracker->track($request, 'request', 'http', $requestContext, 'active');
         }
         $response = $this->acquireResponse($requestContext);
+        $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
+        if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+            $lifecycleOwner->own($response);
+        }
         if ($cacheKey !== null) {
             $response->cacheAs($cacheKey);
         }
@@ -1853,6 +1867,10 @@ class HttpServer {
                 $this->objectTracker->closeContext($context);
             }
         }
+        $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
+        if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+            $lifecycleOwner->close();
+        }
         $this->releaseRequest($request);
         $this->activeRequests = max(0, $this->activeRequests - 1);
     }
@@ -1980,6 +1998,11 @@ class HttpServer {
         /** @var ServerRequest $request */
         $request = $this->requestPool->acquire('http', 'conn:' . $conn->getId());
         $request->hydrate($parsed, $conn);
+        if ($this->runtimeSafetyEnabled && class_exists('\Nexph\Lifecycle\Lifecycle')) {
+            $lifecycleOwner = \Nexph\Lifecycle\Lifecycle::request();
+            $lifecycleOwner->own($request);
+            $request->setAttribute('__lifecycle_owner', $lifecycleOwner);
+        }
         
         // Track request with owner type 'request'
         if (class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
@@ -2283,6 +2306,8 @@ class HttpServer {
         if ($this->sseRedisBus) {
             $this->sseRedisBus->close();
         }
+        $this->workerOwner?->close();
+        $this->workerOwner = null;
 
         $this->loop->stop();
         $this->logStats();

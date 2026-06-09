@@ -6,12 +6,11 @@ use Nexph\Lifecycle\Lifecycle;
 
 class RequestLifecycle
 {
-    public static function handle($request, $server): mixed
+    public static function handle($request, callable $handler): mixed
     {
         $ctx = Lifecycle::request();
         try {
-            $response = $server->handleRequest($request, $ctx);
-            return $response;
+            return $handler($request, $ctx);
         } finally {
             $ctx->close();
         }
