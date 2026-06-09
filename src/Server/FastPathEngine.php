@@ -7,6 +7,9 @@ class FastPathEngine {
     private array $responses = [];
     private array $startLines = [];
     private array $startLineLengths = [];
+    private string $primaryStartLine = '';
+    private string $primaryKey = '';
+    private int $primaryStartLineLength = 0;
     private array $headerCache = [];
     private int $cacheSize = 0;
     private const MAX_CACHE = 4096;
@@ -19,6 +22,11 @@ class FastPathEngine {
         $start = "$method $path HTTP/1.1\r\n";
         $this->startLines[$start] = $key;
         $this->startLineLengths[$start] = strlen($start);
+        if ($this->primaryStartLine === '') {
+            $this->primaryStartLine = $start;
+            $this->primaryKey = $key;
+            $this->primaryStartLineLength = $this->startLineLengths[$start];
+        }
         
         $this->responses[$key][1] = str_replace(
             "Connection: close",
@@ -44,6 +52,27 @@ class FastPathEngine {
         }
 
         $headerLen = $headerEnd + 4;
+        if ($this->primaryStartLine !== '' && strncmp($buffer, $this->primaryStartLine, $this->primaryStartLineLength) === 0) {
+            return [
+                'key' => $this->primaryKey,
+                'keep_alive' => stripos($buffer, "Connection: close") === false,
+                'consumed' => $headerLen,
+            ];
+        }
+
+        foreach ($this->startLines as $start => $key) {
+            if ($start === $this->primaryStartLine) {
+                continue;
+            }
+            if (strncmp($buffer, $start, $this->startLineLengths[$start]) === 0) {
+                return [
+                    'key' => $key,
+                    'keep_alive' => stripos($buffer, "Connection: close") === false,
+                    'consumed' => $headerLen,
+                ];
+            }
+        }
+
         if ($headerLen <= self::MAX_HEADER_LEN) {
             $header = substr($buffer, 0, $headerLen);
             if (isset($this->headerCache[$header])) {
@@ -51,20 +80,6 @@ class FastPathEngine {
             }
         } else {
             $header = null;
-        }
-
-        foreach ($this->startLines as $start => $key) {
-            if (strncmp($buffer, $start, $this->startLineLengths[$start]) === 0) {
-                $result = [
-                    'key' => $key,
-                    'keep_alive' => stripos($buffer, "Connection: close") === false,
-                    'consumed' => $headerLen,
-                ];
-                if ($header !== null) {
-                    $this->rememberHeader($header, $result);
-                }
-                return $result;
-            }
         }
 
         $sp1 = strpos($buffer, ' ');
