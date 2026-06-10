@@ -57,3 +57,10 @@ if (!function_exists('listen')) {
         app()->listen($port, $host);
     }
 }
+
+if (!function_exists('view')) {
+    function view(string $view, array $data = []): \Nexph\View\ViewResponse
+    {
+        return \Nexph\View\view($view, $data);
+    }
+}
