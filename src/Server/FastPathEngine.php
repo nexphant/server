@@ -10,6 +10,8 @@ class FastPathEngine {
     private string $primaryStartLine = '';
     private string $primaryKey = '';
     private int $primaryStartLineLength = 0;
+    private string $primaryKeepAliveResponse = '';
+    private string $primaryCloseResponse = '';
     private array $headerCache = [];
     private int $cacheSize = 0;
     private const MAX_CACHE = 4096;
@@ -39,10 +41,32 @@ class FastPathEngine {
             "Connection: close",
             $rawResponse
         );
+        if ($this->primaryKey === $key) {
+            $this->primaryKeepAliveResponse = $this->responses[$key][1];
+            $this->primaryCloseResponse = $this->responses[$key][0];
+        }
     }
 
     public function hasRoutes(): bool {
         return $this->routes !== [];
+    }
+
+    public function matchPrimary(string $buffer): int {
+        if ($this->primaryStartLine === '') {
+            return 0;
+        }
+
+        $headerEnd = strpos($buffer, "\r\n\r\n");
+        if ($headerEnd === false || strncmp($buffer, $this->primaryStartLine, $this->primaryStartLineLength) !== 0) {
+            return 0;
+        }
+
+        $consumed = $headerEnd + 4;
+        return stripos($buffer, "Connection: close") === false ? $consumed : -$consumed;
+    }
+
+    public function getPrimaryResponse(bool $keepAlive): string {
+        return $keepAlive ? $this->primaryKeepAliveResponse : $this->primaryCloseResponse;
     }
 
     public function matchExact(string $buffer): ?array {

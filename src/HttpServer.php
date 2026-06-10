@@ -466,10 +466,23 @@ class HttpServer {
             $this->directClose($id);
             return;
         }
-        $this->directBuffers[$id] .= $chunk;
+        $this->directBuffers[$id] = $this->directBuffers[$id] === '' ? $chunk : $this->directBuffers[$id] . $chunk;
 
         while ($this->directBuffers[$id] !== '') {
             $buffer = $this->directBuffers[$id];
+            $primary = $this->fastEngine->matchPrimary($buffer);
+            if ($primary !== 0) {
+                $consumed = $primary > 0 ? $primary : -$primary;
+                $keepAlive = $primary > 0 && $this->directRequestCounts[$id] + 1 < $this->maxRequestsPerConnection;
+                $this->directBuffers[$id] = $consumed === strlen($buffer) ? '' : substr($buffer, $consumed);
+                $this->directRequestCounts[$id]++;
+                $this->directWrite($socket, $id, $this->fastEngine->getPrimaryResponse($keepAlive), !$keepAlive);
+                if (!$keepAlive || ($this->directWriteBuffers[$id] ?? '') !== '') {
+                    return;
+                }
+                continue;
+            }
+
             $match = $this->fastEngine->match($buffer);
             if ($match === null) {
                 if (strpos($buffer, "\r\n\r\n") === false) {
