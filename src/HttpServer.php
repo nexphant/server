@@ -472,9 +472,8 @@ class HttpServer {
             $buffer = $this->directBuffers[$id];
             $primary = $this->fastEngine->matchPrimary($buffer);
             if ($primary !== 0) {
-                $consumed = $primary > 0 ? $primary : -$primary;
-                $keepAlive = $primary > 0 && $this->directRequestCounts[$id] + 1 < $this->maxRequestsPerConnection;
-                $this->directBuffers[$id] = $consumed === strlen($buffer) ? '' : substr($buffer, $consumed);
+                $keepAlive = $this->directRequestCounts[$id] + 1 < $this->maxRequestsPerConnection;
+                $this->directBuffers[$id] = $primary === strlen($buffer) ? '' : substr($buffer, $primary);
                 $this->directRequestCounts[$id]++;
                 $this->directWrite($socket, $id, $this->fastEngine->getPrimaryResponse($keepAlive), !$keepAlive);
                 if (!$keepAlive || ($this->directWriteBuffers[$id] ?? '') !== '') {

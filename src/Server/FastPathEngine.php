@@ -56,13 +56,12 @@ class FastPathEngine {
             return 0;
         }
 
-        $headerEnd = strpos($buffer, "\r\n\r\n");
-        if ($headerEnd === false || strncmp($buffer, $this->primaryStartLine, $this->primaryStartLineLength) !== 0) {
+        if (strncmp($buffer, $this->primaryStartLine, $this->primaryStartLineLength) !== 0) {
             return 0;
         }
 
-        $consumed = $headerEnd + 4;
-        return stripos($buffer, "Connection: close") === false ? $consumed : -$consumed;
+        $headerEnd = strpos($buffer, "\r\n\r\n", $this->primaryStartLineLength);
+        return $headerEnd === false ? 0 : $headerEnd + 4;
     }
 
     public function getPrimaryResponse(bool $keepAlive): string {
