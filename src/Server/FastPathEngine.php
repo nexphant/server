@@ -68,6 +68,22 @@ class FastPathEngine {
         return $keepAlive ? $this->primaryKeepAliveResponse : $this->primaryCloseResponse;
     }
 
+    public function primaryStartLine(): string {
+        return $this->primaryStartLine;
+    }
+
+    public function primaryStartLineLength(): int {
+        return $this->primaryStartLineLength;
+    }
+
+    public function primaryKeepAliveResponse(): string {
+        return $this->primaryKeepAliveResponse;
+    }
+
+    public function primaryCloseResponse(): string {
+        return $this->primaryCloseResponse;
+    }
+
     public function matchExact(string $buffer): ?array {
         $headerEnd = strpos($buffer, "\r\n\r\n");
         if ($headerEnd === false) {

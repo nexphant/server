@@ -46,6 +46,10 @@ class HttpServer {
     private array $directRequestCounts = [];
     private array $directSockets = [];
     private int $directSocketCount = 0;
+    private string $directPrimaryStartLine = '';
+    private int $directPrimaryStartLineLength = 0;
+    private string $directPrimaryKeepAliveResponse = '';
+    private string $directPrimaryCloseResponse = '';
 
     // Config
     private string $host = '0.0.0.0';
@@ -407,6 +411,10 @@ class HttpServer {
 
     private function runDirectFastLoop(): void {
         $this->directBase = new \EventBase();
+        $this->directPrimaryStartLine = $this->fastEngine->primaryStartLine();
+        $this->directPrimaryStartLineLength = $this->fastEngine->primaryStartLineLength();
+        $this->directPrimaryKeepAliveResponse = $this->fastEngine->primaryKeepAliveResponse();
+        $this->directPrimaryCloseResponse = $this->fastEngine->primaryCloseResponse();
         $accept = new \Event($this->directBase, $this->serverSocket, \Event::READ | \Event::PERSIST, function (): void {
             $this->directAcceptConnections();
         });
@@ -470,12 +478,16 @@ class HttpServer {
 
         while ($this->directBuffers[$id] !== '') {
             $buffer = $this->directBuffers[$id];
-            $primary = $this->fastEngine->matchPrimary($buffer);
-            if ($primary !== 0) {
+            if ($this->directPrimaryStartLine !== '' && strncmp($buffer, $this->directPrimaryStartLine, $this->directPrimaryStartLineLength) === 0) {
+                $primary = strpos($buffer, "\r\n\r\n", $this->directPrimaryStartLineLength);
+                if ($primary === false) {
+                    return;
+                }
+                $primary += 4;
                 $keepAlive = $this->directRequestCounts[$id] + 1 < $this->maxRequestsPerConnection;
                 $this->directBuffers[$id] = $primary === strlen($buffer) ? '' : substr($buffer, $primary);
                 $this->directRequestCounts[$id]++;
-                $this->directWrite($socket, $id, $this->fastEngine->getPrimaryResponse($keepAlive), !$keepAlive);
+                $this->directWrite($socket, $id, $keepAlive ? $this->directPrimaryKeepAliveResponse : $this->directPrimaryCloseResponse, !$keepAlive);
                 if (!$keepAlive || ($this->directWriteBuffers[$id] ?? '') !== '') {
                     return;
                 }
