@@ -316,6 +316,9 @@ class HttpServer {
         $this->config = array_merge($this->config, $config);
         $this->host = $this->config['host'] ?? $this->host;
         $this->port = $this->config['port'] ?? $this->port;
+        $this->statsDir = $this->config['stats_dir'] ?? (sys_get_temp_dir() . '/nexph-http-' . $this->port);
+        $this->webSocketBusFile = $this->statsDir . '/websocket-bus.log';
+        $this->sseBusFile = $this->statsDir . '/sse-bus.log';
         $this->maxConnections = (int) ($this->config['max_connections'] ?? $this->maxConnections);
         $this->maxAcceptPerTick = (int) ($this->config['max_accept_per_tick'] ?? $this->maxAcceptPerTick);
         $this->quiet = (bool) ($this->config['quiet'] ?? $this->quiet);
@@ -367,6 +370,7 @@ class HttpServer {
         $this->createServer(true);
         $this->setupSignals();
         $this->setupTimers();
+        $this->publishStats();
 
         ServerTUI::serverStarted($this->host, $this->port);
 
