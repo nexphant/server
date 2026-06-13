@@ -3,14 +3,15 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class WebSocket {
+class WebSocket
+{
     private const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
     public const TEXT = 0x01;
     public const BINARY = 0x02;
@@ -18,12 +19,14 @@ class WebSocket {
     public const PING = 0x09;
     public const PONG = 0x0A;
 
-    public static function isUpgrade(ServerRequest $request): bool {
+    public static function isUpgrade(ServerRequest $request): bool
+    {
         return strtolower($request->header('upgrade', '')) === 'websocket' &&
             str_contains(strtolower($request->header('connection', '')), 'upgrade');
     }
 
-    public static function handshake(ServerRequest $request, ServerResponse $response): bool {
+    public static function handshake(ServerRequest $request, ServerResponse $response): bool
+    {
         $key = $request->header('sec-websocket-key');
         if (!$key || strlen(base64_decode($key, true) ?: '') !== 16) {
             return false;
@@ -36,7 +39,8 @@ class WebSocket {
         return true;
     }
 
-    public static function encode(string $payload, int $opcode = self::TEXT): string {
+    public static function encode(string $payload, int $opcode = self::TEXT): string
+    {
         $len = strlen($payload);
         $frame = chr(0x80 | ($opcode & 0x0F));
 
@@ -52,7 +56,8 @@ class WebSocket {
         return $frame . chr(127) . pack('N2', $hi, $lo) . $payload;
     }
 
-    public static function decode(string $data): ?array {
+    public static function decode(string $data): ?array
+    {
         $size = strlen($data);
         if ($size < 2) {
             return null;
@@ -64,11 +69,13 @@ class WebSocket {
         $offset = 2;
 
         if ($len === 126) {
-            if ($size < 4) return null;
+            if ($size < 4)
+                return null;
             $len = unpack('n', substr($data, 2, 2))[1];
             $offset = 4;
         } elseif ($len === 127) {
-            if ($size < 10) return null;
+            if ($size < 10)
+                return null;
             $parts = unpack('Nhi/Nlo', substr($data, 2, 8));
             $len = ($parts['hi'] * 4294967296) + $parts['lo'];
             $offset = 10;
@@ -76,7 +83,8 @@ class WebSocket {
 
         $masked = ($byte2 & 0x80) !== 0;
         if ($masked) {
-            if ($size < $offset + 4) return null;
+            if ($size < $offset + 4)
+                return null;
             $mask = substr($data, $offset, 4);
             $offset += 4;
         } else {
@@ -102,7 +110,8 @@ class WebSocket {
         ];
     }
 
-    public static function peekPayloadLength(string $data): ?int {
+    public static function peekPayloadLength(string $data): ?int
+    {
         $size = strlen($data);
         if ($size < 2) {
             return null;

@@ -3,14 +3,15 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class HttpParser {
+class HttpParser
+{
     private static array $methodMap = [
         'G' => 'GET',
         'P' => 'POST',
@@ -19,7 +20,8 @@ class HttpParser {
         'O' => 'OPTIONS',
     ];
 
-    public static function parseRequest(string $raw): ?array {
+    public static function parseRequest(string $raw): ?array
+    {
         $headerEnd = strpos($raw, "\r\n\r\n");
         if ($headerEnd === false) {
             return null;
@@ -120,25 +122,26 @@ class HttpParser {
         ];
     }
 
-    public static function buildResponse(int $status, array $headers, string $body): string {
+    public static function buildResponse(int $status, array $headers, string $body): string
+    {
         static $statusTexts = [
-            200 => 'OK',
-            101 => 'Switching Protocols',
-            201 => 'Created',
-            204 => 'No Content',
-            301 => 'Moved Permanently',
-            302 => 'Found',
-            304 => 'Not Modified',
-            400 => 'Bad Request',
-            401 => 'Unauthorized',
-            403 => 'Forbidden',
-            404 => 'Not Found',
-            405 => 'Method Not Allowed',
-            413 => 'Payload Too Large',
-            429 => 'Too Many Requests',
-            500 => 'Internal Server Error',
-            502 => 'Bad Gateway',
-            503 => 'Service Unavailable',
+        200 => 'OK',
+        101 => 'Switching Protocols',
+        201 => 'Created',
+        204 => 'No Content',
+        301 => 'Moved Permanently',
+        302 => 'Found',
+        304 => 'Not Modified',
+        400 => 'Bad Request',
+        401 => 'Unauthorized',
+        403 => 'Forbidden',
+        404 => 'Not Found',
+        405 => 'Method Not Allowed',
+        413 => 'Payload Too Large',
+        429 => 'Too Many Requests',
+        500 => 'Internal Server Error',
+        502 => 'Bad Gateway',
+        503 => 'Service Unavailable',
         ];
 
         $statusText = $statusTexts[$status] ?? 'Unknown';

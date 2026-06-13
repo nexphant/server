@@ -3,14 +3,15 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class ObjectPool {
+class ObjectPool
+{
     /** @var object[] */
     private array $items = [];
     private array $known = [];
@@ -30,9 +31,11 @@ class ObjectPool {
         private readonly string $name = 'object',
         private readonly ?ObjectTracker $tracker = null,
         private readonly bool $safety = false,
-    ) {}
+    ) {
+    }
 
-    public function acquire(string $owner = '', string $context = ''): object {
+    public function acquire(string $owner = '', string $context = ''): object
+    {
         $item = array_pop($this->items);
         if ($item) {
             $this->reused++;
@@ -56,7 +59,8 @@ class ObjectPool {
         return $item;
     }
 
-    public function release(object $item): void {
+    public function release(object $item): void
+    {
         if ($this->safety) {
             $id = spl_object_id($item);
             if (!isset($this->known[$id])) {
@@ -87,7 +91,8 @@ class ObjectPool {
         ]);
     }
 
-    private function doReset(object $item): void {
+    private function doReset(object $item): void
+    {
         if ($this->reset) {
             ($this->reset)($item);
             return;
@@ -98,7 +103,8 @@ class ObjectPool {
         }
     }
 
-    public function stats(): array {
+    public function stats(): array
+    {
         return [
             'idle' => count($this->items),
             'borrowed' => count($this->borrowed),

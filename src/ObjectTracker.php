@@ -3,14 +3,15 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class ObjectTracker {
+class ObjectTracker
+{
     private \WeakMap $objects;
     private array $contexts = [];
     private int $tracked = 0;
@@ -19,12 +20,14 @@ class ObjectTracker {
     private int $contextClosed = 0;
     private bool $enabled;
 
-    public function __construct(bool $enabled = false) {
+    public function __construct(bool $enabled = false)
+    {
         $this->objects = new \WeakMap();
         $this->enabled = $enabled;
     }
 
-    public function openContext(string $id, string $type = 'request'): void {
+    public function openContext(string $id, string $type = 'request'): void
+    {
         if (!$this->enabled) {
             return;
         }
@@ -37,7 +40,8 @@ class ObjectTracker {
         $this->contextOpened++;
     }
 
-    public function closeContext(string $id): void {
+    public function closeContext(string $id): void
+    {
         if (!$this->enabled) {
             return;
         }
@@ -50,7 +54,8 @@ class ObjectTracker {
         $this->contextClosed++;
     }
 
-    public function track(object $object, string $type, string $owner = '', string $context = '', string $state = 'active'): void {
+    public function track(object $object, string $type, string $owner = '', string $context = '', string $state = 'active'): void
+    {
         if (!$this->enabled) {
             return;
         }
@@ -71,7 +76,8 @@ class ObjectTracker {
         ];
     }
 
-    public function update(object $object, array $changes): void {
+    public function update(object $object, array $changes): void
+    {
         if (!$this->enabled) {
             return;
         }
@@ -88,7 +94,8 @@ class ObjectTracker {
         $this->objects[$object] = $meta;
     }
 
-    public function release(object $object, string $state = 'released'): void {
+    public function release(object $object, string $state = 'released'): void
+    {
         if (!$this->enabled) {
             return;
         }
@@ -105,7 +112,8 @@ class ObjectTracker {
         ]);
     }
 
-    public function stats(): array {
+    public function stats(): array
+    {
         if (!$this->enabled) {
             return [
                 'enabled' => false,
@@ -176,7 +184,8 @@ class ObjectTracker {
         ];
     }
 
-    public function cleanupContexts(int $maxClosed = 4096): void {
+    public function cleanupContexts(int $maxClosed = 4096): void
+    {
         if (!$this->enabled) {
             return;
         }

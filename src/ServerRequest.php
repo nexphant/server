@@ -3,14 +3,15 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class ServerRequest extends \Nexph\Request {
+class ServerRequest extends \Nexph\Request
+{
     private ?Server\Connection $connection = null;
     private array $attributes = [];
     private bool $queryParsed = false;
@@ -19,13 +20,15 @@ class ServerRequest extends \Nexph\Request {
     private string $rawCookie = '';
     private string $contentType = '';
 
-    public function __construct(?array $parsed = null, ?Server\Connection $conn = null) {
+    public function __construct(?array $parsed = null, ?Server\Connection $conn = null)
+    {
         if ($parsed !== null && $conn !== null) {
             $this->hydrate($parsed, $conn);
         }
     }
 
-    public function hydrate(array $parsed, Server\Connection $conn): void {
+    public function hydrate(array $parsed, Server\Connection $conn): void
+    {
         $this->connection = $conn;
         $this->method = $parsed['method'];
         $this->uri = $parsed['uri'];
@@ -47,11 +50,13 @@ class ServerRequest extends \Nexph\Request {
         $this->contentType = $this->headers['content-type'] ?? '';
     }
 
-    public function header(string $name, ?string $default = null): ?string {
+    public function header(string $name, ?string $default = null): ?string
+    {
         return $this->headers[strtolower($name)] ?? $default;
     }
 
-    public function query(string $name, mixed $default = null): mixed {
+    public function query(string $name, mixed $default = null): mixed
+    {
         if (!$this->queryParsed && $this->queryString !== '') {
             parse_str($this->queryString, $this->query);
             $this->queryParsed = true;
@@ -59,7 +64,8 @@ class ServerRequest extends \Nexph\Request {
         return $this->query[$name] ?? $default;
     }
 
-    public function post(string $name, mixed $default = null): mixed {
+    public function post(string $name, mixed $default = null): mixed
+    {
         if (!$this->bodyParsed && $this->body !== '' && $this->contentType !== '') {
             if (str_contains($this->contentType, 'application/json')) {
                 $this->parsedBody = json_decode($this->body, true) ?? [];
@@ -71,7 +77,8 @@ class ServerRequest extends \Nexph\Request {
         return $this->parsedBody[$name] ?? $default;
     }
 
-    public function cookie(string $name, ?string $default = null): ?string {
+    public function cookie(string $name, ?string $default = null): ?string
+    {
         if (!$this->cookiesParsed && $this->rawCookie !== '') {
             $pairs = explode(';', $this->rawCookie);
             foreach ($pairs as $pair) {
@@ -86,11 +93,13 @@ class ServerRequest extends \Nexph\Request {
         return $this->cookies[$name] ?? $default;
     }
 
-    public function input(string $name, mixed $default = null): mixed {
+    public function input(string $name, mixed $default = null): mixed
+    {
         return $this->parsedBody[$name] ?? $this->query[$name] ?? $default;
     }
 
-    public function all(): array {
+    public function all(): array
+    {
         if (!$this->queryParsed && $this->queryString !== '') {
             parse_str($this->queryString, $this->query);
             $this->queryParsed = true;
@@ -106,7 +115,8 @@ class ServerRequest extends \Nexph\Request {
         return array_merge($this->query, $this->parsedBody);
     }
 
-    public function json(): array {
+    public function json(): array
+    {
         if (!$this->bodyParsed && $this->body !== '' && $this->contentType !== '') {
             if (str_contains($this->contentType, 'application/json')) {
                 $this->parsedBody = json_decode($this->body, true) ?? [];
@@ -118,45 +128,54 @@ class ServerRequest extends \Nexph\Request {
         return $this->parsedBody;
     }
 
-    public function isJson(): bool {
+    public function isJson(): bool
+    {
         return str_contains($this->header('content-type', ''), 'application/json');
     }
 
-    public function isMethod(string $method): bool {
+    public function isMethod(string $method): bool
+    {
         return strcasecmp($this->method, $method) === 0;
     }
 
-    public function setAttribute(string $name, mixed $value): void {
+    public function setAttribute(string $name, mixed $value): void
+    {
         $this->attributes[$name] = $value;
     }
 
-    public function getAttribute(string $name, mixed $default = null): mixed {
+    public function getAttribute(string $name, mixed $default = null): mixed
+    {
         return $this->attributes[$name] ?? $default;
     }
 
-    public function getAttributes(): array {
+    public function getAttributes(): array
+    {
         return $this->attributes;
     }
 
-    public function getConnection(): Connection {
+    public function getConnection(): Connection
+    {
         if ($this->connection === null) {
             throw new \RuntimeException('Request has no active connection');
         }
         return $this->connection;
     }
 
-    public function wantsKeepAlive(): bool {
+    public function wantsKeepAlive(): bool
+    {
         $connection = strtolower($this->header('connection', 'keep-alive'));
         return $connection !== 'close';
     }
 
-    public function isClean(): bool {
+    public function isClean(): bool
+    {
         return $this->connection === null &&
             $this->method === '' &&
             $this->attributes === [];
     }
 
-    public function reset(): void {
+    public function reset(): void
+    {
         $this->method = '';
         $this->uri = '';
         $this->path = '';

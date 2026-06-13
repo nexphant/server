@@ -3,36 +3,41 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class Coroutine {
+class Coroutine
+{
     private static array $tasks = [];
     private static int $taskId = 0;
     private static ?EventLoop $loop = null;
 
-    public static function setLoop(EventLoop $loop): void {
+    public static function setLoop(EventLoop $loop): void
+    {
         self::$loop = $loop;
     }
 
-    public static function create(\Generator $generator): int {
+    public static function create(\Generator $generator): int
+    {
         $task = new Task(++self::$taskId, $generator);
         self::$tasks[$task->getId()] = $task;
         self::schedule($task);
         return $task->getId();
     }
 
-    public static function schedule(Task $task): void {
+    public static function schedule(Task $task): void
+    {
         self::$loop?->defer(function () use ($task) {
             self::runTask($task);
         });
     }
 
-    private static function runTask(Task $task): void {
+    private static function runTask(Task $task): void
+    {
         if (!$task->isFinished()) {
             $value = $task->run();
 
@@ -55,43 +60,52 @@ class Coroutine {
         }
     }
 
-    public static function async(callable $fn): \Generator {
+    public static function async(callable $fn): \Generator
+    {
         yield from $fn();
     }
 
-    public static function await(Awaitable $awaitable): \Generator {
+    public static function await(Awaitable $awaitable): \Generator
+    {
         return yield $awaitable;
     }
 
-    public static function sleep(float $seconds): Awaitable {
+    public static function sleep(float $seconds): Awaitable
+    {
         return new Timer($seconds, self::$loop);
     }
 
-    public static function all(array $awaitables): Awaitable {
+    public static function all(array $awaitables): Awaitable
+    {
         return new AwaitAll($awaitables, self::$loop);
     }
 
-    public static function count(): int {
+    public static function count(): int
+    {
         return count(self::$tasks);
     }
 }
 
-class Task {
+class Task
+{
     private int $id;
     private \Generator $coroutine;
     private mixed $sendValue = null;
     private bool $started = false;
 
-    public function __construct(int $id, \Generator $coroutine) {
+    public function __construct(int $id, \Generator $coroutine)
+    {
         $this->id = $id;
         $this->coroutine = $coroutine;
     }
 
-    public function getId(): int {
+    public function getId(): int
+    {
         return $this->id;
     }
 
-    public function run(): mixed {
+    public function run(): mixed
+    {
         if (!$this->started) {
             $this->started = true;
             return $this->coroutine->current();
@@ -101,35 +115,42 @@ class Task {
         return $result;
     }
 
-    public function send(mixed $value): void {
+    public function send(mixed $value): void
+    {
         $this->sendValue = $value;
     }
 
-    public function isFinished(): bool {
+    public function isFinished(): bool
+    {
         return !$this->coroutine->valid();
     }
 
-    public function getReturn(): mixed {
+    public function getReturn(): mixed
+    {
         return $this->coroutine->getReturn();
     }
 }
 
-interface Awaitable {
+interface Awaitable
+{
     public function then(callable $callback): void;
 }
 
-class Timer implements Awaitable {
+class Timer implements Awaitable
+{
     private float $delay;
     private ?EventLoop $loop;
     /** @var callable|null */
     private $callback = null;
 
-    public function __construct(float $delay, ?EventLoop $loop) {
+    public function __construct(float $delay, ?EventLoop $loop)
+    {
         $this->delay = $delay;
         $this->loop = $loop;
     }
 
-    public function then(callable $callback): void {
+    public function then(callable $callback): void
+    {
         $this->callback = $callback;
         $this->loop?->addTimer($this->delay, function () {
             ($this->callback)(null);
@@ -137,14 +158,17 @@ class Timer implements Awaitable {
     }
 }
 
-class Deferred implements Awaitable {
+class Deferred implements Awaitable
+{
     /** @var callable|null */
     private $callback = null;
     private bool $resolved = false;
     private mixed $value = null;
 
-    public function resolve(mixed $value = null): void {
-        if ($this->resolved) return;
+    public function resolve(mixed $value = null): void
+    {
+        if ($this->resolved)
+            return;
         $this->resolved = true;
         $this->value = $value;
         if ($this->callback) {
@@ -154,7 +178,8 @@ class Deferred implements Awaitable {
         }
     }
 
-    public function then(callable $callback): void {
+    public function then(callable $callback): void
+    {
         if ($this->resolved) {
             $callback($this->value);
             return;
@@ -162,24 +187,28 @@ class Deferred implements Awaitable {
         $this->callback = $callback;
     }
 
-    public function isResolved(): bool {
+    public function isResolved(): bool
+    {
         return $this->resolved;
     }
 }
 
-class AwaitAll implements Awaitable {
+class AwaitAll implements Awaitable
+{
     private array $awaitables;
     private array $results = [];
     private int $pending;
     /** @var callable|null */
     private $callback = null;
 
-    public function __construct(array $awaitables, ?EventLoop $loop) {
+    public function __construct(array $awaitables, ?EventLoop $loop)
+    {
         $this->awaitables = $awaitables;
         $this->pending = count($awaitables);
     }
 
-    public function then(callable $callback): void {
+    public function then(callable $callback): void
+    {
         $this->callback = $callback;
 
         if ($this->pending === 0) {

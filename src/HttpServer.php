@@ -3,7 +3,7 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -17,7 +17,8 @@ use Nexph\Runtime\ResponseCache;
 use Nexph\Runtime\Adaptive\AdaptiveRuntime;
 use Nexph\Runtime\Adaptive\SharedWorkerTable;
 
-class HttpServer {
+class HttpServer
+{
     private EventLoop $loop;
     private array $config = [];
     private $serverSocket;
@@ -159,7 +160,8 @@ class HttpServer {
     private int $httpRouteLatencySampleLimit = 0;
     private const LATENCY_BUCKETS_MS = [1, 5, 10, 25, 50, 75, 100, 250, 500, 1000, 2500, 5000];
 
-    public function __construct(array $config = []) {
+    public function __construct(array $config = [])
+    {
         $this->config = $config;
         $this->host = $config['host'] ?? '0.0.0.0';
         $this->port = $config['port'] ?? 8080;
@@ -219,7 +221,7 @@ class HttpServer {
         // if (!($config['quiet'] ?? false) && ($config['worker_id'] ?? 1) === 1) {
         //     error_log("Event Loop: $backendName");
         // }
-        
+
         $this->loop = new EventLoop($backend);
         $this->loop->setMaxDeferred((int) ($config['max_deferred'] ?? 100000));
         $this->loop->setFairnessLimits(
@@ -272,28 +274,31 @@ class HttpServer {
         }
         $adaptiveAcceptEnabled = (bool) ($config['adaptive_accept'] ?? false);
         $this->adaptive = AdaptiveRuntime::init($this->workerId, [
-            'max_connections'                 => $this->maxConnections,
-            'max_requests'                    => (int) ($config['adaptive_max_active_requests'] ?? 1000),
-            'max_pending_writes'              => (int) ($config['adaptive_max_pending_writes']  ?? 200),
-            'max_tick_ms'                     => (float) ($config['adaptive_max_tick_ms']       ?? 50.0),
-            'max_accept_per_tick'             => $this->maxAcceptPerTick,
-            'max_reads_per_connection_tick'   => (int) ($config['max_reads_per_connection_tick']  ?? 8),
-            'adaptive_accept_enabled'         => $adaptiveAcceptEnabled,
-            'max_writes_per_connection_tick'  => (int) ($config['max_writes_per_connection_tick'] ?? 8),
+            'max_connections' => $this->maxConnections,
+            'max_requests' => (int) ($config['adaptive_max_active_requests'] ?? 1000),
+            'max_pending_writes' => (int) ($config['adaptive_max_pending_writes'] ?? 200),
+            'max_tick_ms' => (float) ($config['adaptive_max_tick_ms'] ?? 50.0),
+            'max_accept_per_tick' => $this->maxAcceptPerTick,
+            'max_reads_per_connection_tick' => (int) ($config['max_reads_per_connection_tick'] ?? 8),
+            'adaptive_accept_enabled' => $adaptiveAcceptEnabled,
+            'max_writes_per_connection_tick' => (int) ($config['max_writes_per_connection_tick'] ?? 8),
         ], $sharedTable);
     }
 
-    public function use(callable $middleware): self {
+    public function use(callable $middleware): self
+    {
         $this->middleware[] = $middleware;
         return $this;
     }
 
-    public function onRequest(callable $handler): self {
+    public function onRequest(callable $handler): self
+    {
         $this->requestHandler = $handler;
         return $this;
     }
 
-    public function onWebSocket(string $path, callable $onMessage, ?callable $onOpen = null, ?callable $onClose = null): self {
+    public function onWebSocket(string $path, callable $onMessage, ?callable $onOpen = null, ?callable $onClose = null): self
+    {
         $this->webSocketHandlers[$path] = [
             'message' => $onMessage,
             'open' => $onOpen,
@@ -302,7 +307,8 @@ class HttpServer {
         return $this;
     }
 
-    public function setWorkerInfo(int $workerId, int $workerCount): void {
+    public function setWorkerInfo(int $workerId, int $workerCount): void
+    {
         $this->workerId = max(1, $workerId);
         $this->workerCount = max(1, $workerCount);
         $this->config['worker_id'] = $this->workerId;
@@ -312,7 +318,8 @@ class HttpServer {
         ServerTUI::setWorkerInfo($workerId, $workerCount);
     }
 
-    public function configure(array $config): self {
+    public function configure(array $config): self
+    {
         $this->config = array_merge($this->config, $config);
         $this->host = $this->config['host'] ?? $this->host;
         $this->port = $this->config['port'] ?? $this->port;
@@ -345,7 +352,8 @@ class HttpServer {
         return $this;
     }
 
-    public function setAddress(string $host, int $port): self {
+    public function setAddress(string $host, int $port): self
+    {
         $this->host = $host;
         $this->port = $port;
         $this->config['host'] = $host;
@@ -353,7 +361,8 @@ class HttpServer {
         return $this;
     }
 
-    public function start(): void {
+    public function start(): void
+    {
         ServerTUI::setEnabled(!$this->quiet);
         $this->startTime = microtime(true);
         $this->workerOwner ??= class_exists('\Nexph\Lifecycle\Lifecycle') && $this->runtimeSafetyEnabled
@@ -377,7 +386,8 @@ class HttpServer {
         $this->loop->run();
     }
 
-    private function createServer(bool $attachReader = true): void {
+    private function createServer(bool $attachReader = true): void
+    {
         $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create(
             $this->config['socket_driver'] ?? 'auto',
             ['reuse_port' => $this->config['reuse_port'] ?? (($this->config['profile'] ?? '') === 'low_latency' ? false : true)]
@@ -402,7 +412,8 @@ class HttpServer {
         });
     }
 
-    private function shouldUseDirectFastLoop(): bool {
+    private function shouldUseDirectFastLoop(): bool
+    {
         return !$this->runtimeSafetyEnabled &&
             ($this->config['direct_fast_loop'] ?? false) &&
             extension_loaded('event') &&
@@ -413,7 +424,8 @@ class HttpServer {
             in_array((string) ($this->config['socket_driver'] ?? 'auto'), ['auto', 'native'], true);
     }
 
-    private function runDirectFastLoop(): void {
+    private function runDirectFastLoop(): void
+    {
         $this->directBase = new \EventBase();
         $this->directPrimaryStartLine = $this->fastEngine->primaryStartLine();
         $this->directPrimaryStartLineLength = $this->fastEngine->primaryStartLineLength();
@@ -428,7 +440,8 @@ class HttpServer {
         $this->directBase->loop();
     }
 
-    private function directSignal(int $signal): void {
+    private function directSignal(int $signal): void
+    {
         if (!defined('SIGINT')) {
             return;
         }
@@ -439,7 +452,8 @@ class HttpServer {
         $this->directSignalEvents[$signal] = $event;
     }
 
-    private function directAcceptConnections(): void {
+    private function directAcceptConnections(): void
+    {
         for ($i = 0; $i < $this->maxAcceptPerTick; $i++) {
             $client = $this->socketDriver?->accept($this->serverSocket);
             if (!$client) {
@@ -463,7 +477,8 @@ class HttpServer {
         }
     }
 
-    private function directRead(\Socket $socket, int $id): void {
+    private function directRead(\Socket $socket, int $id): void
+    {
         $chunk = '';
         $bytes = @socket_recv($socket, $chunk, 65536, MSG_DONTWAIT);
         if ($bytes === false) {
@@ -517,7 +532,8 @@ class HttpServer {
         }
     }
 
-    private function directWrite(\Socket $socket, int $id, string $data, bool $closeWhenDone): void {
+    private function directWrite(\Socket $socket, int $id, string $data, bool $closeWhenDone): void
+    {
         $length = strlen($data);
         $written = @socket_send($socket, $data, $length, MSG_DONTWAIT);
         if ($written === false) {
@@ -538,7 +554,8 @@ class HttpServer {
         }
     }
 
-    private function directFlushLater(\Socket $socket, int $id, bool $closeWhenDone): void {
+    private function directFlushLater(\Socket $socket, int $id, bool $closeWhenDone): void
+    {
         if (isset($this->directWriteEvents[$id])) {
             return;
         }
@@ -567,7 +584,8 @@ class HttpServer {
         $this->directWriteEvents[$id] = $event;
     }
 
-    private function directClose(int $id): void {
+    private function directClose(int $id): void
+    {
         if (isset($this->directReadEvents[$id])) {
             $this->directReadEvents[$id]->del();
             unset($this->directReadEvents[$id]);
@@ -588,7 +606,8 @@ class HttpServer {
         );
     }
 
-    private function setupSignals(): void {
+    private function setupSignals(): void
+    {
         $this->loop->addSignal(SIGINT, fn() => $this->shutdown());
         $this->loop->addSignal(SIGTERM, fn() => $this->shutdown());
         if (defined('SIGUSR1')) {
@@ -596,12 +615,13 @@ class HttpServer {
         }
     }
 
-    private function setupTimers(): void {
+    private function setupTimers(): void
+    {
         $profile = $this->config['runtime_mode'] ?? 'balanced';
         $features = $this->config['runtime_features'] ?? [];
         $statsEnabled = $features['stats_file_writes'] ?? true;
         $metricsEnabled = $features['metrics'] ?? true;
-        
+
         $lagInterval = 0.5;
         $lastTick = microtime(true);
         $this->loop->addTimer($lagInterval, function () use (&$lastTick, $lagInterval) {
@@ -730,7 +750,8 @@ class HttpServer {
         }, periodic: true);
     }
 
-    private function countPendingWrites(): int {
+    private function countPendingWrites(): int
+    {
         $count = 0;
         foreach ($this->connections as $conn) {
             if ($conn->hasWriteBuffer()) {
@@ -740,11 +761,12 @@ class HttpServer {
         return $count;
     }
 
-    private function acceptConnections(): void {
+    private function acceptConnections(): void
+    {
         if ($this->adaptive !== null) {
             $this->adaptive->stats->activeConnections = count($this->connections);
-            $this->adaptive->stats->activeRequests    = $this->activeRequests;
-            $this->adaptive->stats->pendingWrites     = $this->countPendingWrites();
+            $this->adaptive->stats->activeRequests = $this->activeRequests;
+            $this->adaptive->stats->pendingWrites = $this->countPendingWrites();
         }
 
         $limit = ($this->adaptive !== null && $this->adaptive->isAcceptThrottlingEnabled())
@@ -758,7 +780,8 @@ class HttpServer {
         }
     }
 
-    private function acceptConnection(): bool {
+    private function acceptConnection(): bool
+    {
         if (!$this->accepting) {
             return false;
         }
@@ -804,7 +827,8 @@ class HttpServer {
         return true;
     }
 
-    private function handleRead(Connection $conn): void {
+    private function handleRead(Connection $conn): void
+    {
         $data = $conn->read();
 
         if ($this->adaptive !== null) {
@@ -837,34 +861,34 @@ class HttpServer {
         }
 
         $buffer = $conn->getBuffer();
-        
+
         $match = $this->fastEngine->match($buffer);
         if ($match !== null) {
             $conn->consumeBuffer($match['consumed']);
             $conn->incrementRequestCount();
             $this->totalRequests++;
-            
+
             $keepAlive = $match['keep_alive'] && $conn->getRequestCount() < $this->maxRequestsPerConnection;
             $response = $this->fastEngine->getResponse($match['key'], $keepAlive);
-            
+
             $written = $conn->writeFast($response);
             if ($written < 0) {
                 $this->closeConnection($conn);
                 return;
             }
-            
+
             if ($written < strlen($response)) {
                 $conn->write(substr($response, $written));
                 $this->flushPending($conn, !$keepAlive);
                 return;
             }
-            
+
             if (!$keepAlive) {
                 $this->closeConnection($conn);
             }
             return;
         }
-        
+
         $fastResponse = null;
         if (strncmp($buffer, "GET / ", 6) === 0) {
             $fastResponse = $this->fastPath->get('GET', '/');
@@ -881,12 +905,12 @@ class HttpServer {
                 $conn->consumeBuffer($rawLength);
                 $conn->incrementRequestCount();
                 $this->totalRequests++;
-                
+
                 $shouldClose = $conn->getRequestCount() >= $this->maxRequestsPerConnection;
                 if ($shouldClose) {
                     $fastResponse = str_replace("Connection: keep-alive", "Connection: close", $fastResponse);
                 }
-                
+
                 if ($conn->writeFast($fastResponse) <= 0 || $shouldClose) {
                     $this->closeConnection($conn);
                 }
@@ -953,22 +977,23 @@ class HttpServer {
 
         // Disable keep-alive under pressure or after max requests
         $keepAlive = $request->wantsKeepAlive() &&
-                     $conn->getRequestCount() < $this->maxRequestsPerConnection &&
-                     count($this->connections) < $this->maxConnections * 0.8 &&
-                     $this->memoryPressureState === 'normal' &&
-                     !$this->draining;
-        
+            $conn->getRequestCount() < $this->maxRequestsPerConnection &&
+            count($this->connections) < $this->maxConnections * 0.8 &&
+            $this->memoryPressureState === 'normal' &&
+            !$this->draining;
+
         if ($conn->getRequestCount() >= $this->maxRequestsPerConnection) {
             $keepAlive = false;
         }
-        
+
         $conn->setKeepAlive($keepAlive);
 
         // Fast path: try sync dispatch, fall back to coroutine
         $this->dispatchRequest($request, $response, $conn);
     }
 
-    private function upgradeWebSocket(ServerRequest $request, ServerResponse $response, Connection $conn): void {
+    private function upgradeWebSocket(ServerRequest $request, ServerResponse $response, Connection $conn): void
+    {
         $path = $request->path;
         $handler = $this->webSocketHandlers[$path] ?? null;
         if ($handler === null || !WebSocket::handshake($request, $response)) {
@@ -990,7 +1015,8 @@ class HttpServer {
         }
     }
 
-    private function handleWebSocketFrames(Connection $conn): void {
+    private function handleWebSocketFrames(Connection $conn): void
+    {
         if (strlen($conn->getBuffer()) > $this->webSocketMaxReadBufferSize) {
             $this->webSocketReadLimitCloses++;
             $this->closeWebSocket($conn, 1009, 'Read buffer limit');
@@ -1041,7 +1067,8 @@ class HttpServer {
         }
     }
 
-    public function sendWebSocket(Connection $conn, string $payload, int $opcode = WebSocket::TEXT, bool $critical = false): bool {
+    public function sendWebSocket(Connection $conn, string $payload, int $opcode = WebSocket::TEXT, bool $critical = false): bool
+    {
         if (!$conn->isWebSocket() || !$conn->isAlive()) {
             return false;
         }
@@ -1069,7 +1096,8 @@ class HttpServer {
         return true;
     }
 
-    private function handleWebSocketBackpressure(Connection $conn): bool {
+    private function handleWebSocketBackpressure(Connection $conn): bool
+    {
         if ($this->webSocketBackpressurePolicy === 'skip') {
             $this->webSocketBackpressureSkips++;
             return false;
@@ -1080,7 +1108,8 @@ class HttpServer {
         return false;
     }
 
-    private function sendWebSocketPing(Connection $conn): void {
+    private function sendWebSocketPing(Connection $conn): void
+    {
         if (!$conn->isWebSocket() || !$conn->isAlive() || $conn->isClosing()) {
             return;
         }
@@ -1090,7 +1119,8 @@ class HttpServer {
         $this->sendWebSocket($conn, (string) microtime(true), WebSocket::PING, true);
     }
 
-    public function broadcastWebSocket(string $path, string $payload, ?Connection $except = null, int $opcode = WebSocket::TEXT, bool $publish = true): int {
+    public function broadcastWebSocket(string $path, string $payload, ?Connection $except = null, int $opcode = WebSocket::TEXT, bool $publish = true): int
+    {
         $targetIds = $this->collectWebSocketTargets($path, null, $except);
 
         if ($targetIds !== []) {
@@ -1105,7 +1135,8 @@ class HttpServer {
         return count($targetIds);
     }
 
-    public function joinWebSocketRoom(Connection $conn, string $room): void {
+    public function joinWebSocketRoom(Connection $conn, string $room): void
+    {
         if (!$conn->isWebSocket()) {
             return;
         }
@@ -1117,7 +1148,8 @@ class HttpServer {
         $this->webSocketConnectionRooms[$id][$path][$room] = true;
     }
 
-    public function leaveWebSocketRoom(Connection $conn, string $room): void {
+    public function leaveWebSocketRoom(Connection $conn, string $room): void
+    {
         if (!$conn->isWebSocket()) {
             return;
         }
@@ -1140,7 +1172,8 @@ class HttpServer {
         }
     }
 
-    public function broadcastWebSocketRoom(string $path, string $room, string $payload, ?Connection $except = null, int $opcode = WebSocket::TEXT, bool $publish = true): int {
+    public function broadcastWebSocketRoom(string $path, string $room, string $payload, ?Connection $except = null, int $opcode = WebSocket::TEXT, bool $publish = true): int
+    {
         $room = $this->normalizeWebSocketRoom($room);
         $targetIds = $this->collectWebSocketTargets($path, $room, $except);
 
@@ -1156,7 +1189,8 @@ class HttpServer {
         return count($targetIds);
     }
 
-    private function collectWebSocketTargets(string $path, ?string $room, ?Connection $except): array {
+    private function collectWebSocketTargets(string $path, ?string $room, ?Connection $except): array
+    {
         $targetIds = [];
         $source = $room === null ? $this->connections : array_intersect_key($this->connections, $this->webSocketRooms[$path][$room] ?? []);
         foreach ($source as $id => $conn) {
@@ -1171,7 +1205,8 @@ class HttpServer {
         return $targetIds;
     }
 
-    private function queueWebSocketBroadcast(array $targetIds, string $payload, int $opcode): void {
+    private function queueWebSocketBroadcast(array $targetIds, string $payload, int $opcode): void
+    {
         $total = count($targetIds);
         if ($total === 0) {
             return;
@@ -1206,7 +1241,8 @@ class HttpServer {
         $this->loop->defer($sendChunk);
     }
 
-    private function publishWebSocketBus(string $path, string $payload, int $opcode, ?string $room): void {
+    private function publishWebSocketBus(string $path, string $payload, int $opcode, ?string $room): void
+    {
         $event = json_encode([
             'id' => bin2hex(random_bytes(8)),
             'pid' => getmypid(),
@@ -1235,11 +1271,13 @@ class HttpServer {
         @file_put_contents($this->webSocketBusFile, $event . "\n", FILE_APPEND | LOCK_EX);
     }
 
-    private function shouldPublishWebSocketBus(): bool {
+    private function shouldPublishWebSocketBus(): bool
+    {
         return $this->webSocketBusType === 'redis' || ($this->webSocketBusType === 'file' && ($this->workerCount > 1 || $this->webSocketBusSingleWorker));
     }
 
-    private function pollWebSocketBus(): void {
+    private function pollWebSocketBus(): void
+    {
         if (!is_file($this->webSocketBusFile)) {
             return;
         }
@@ -1275,7 +1313,8 @@ class HttpServer {
         }
     }
 
-    private function handleWebSocketBusEvent(string $line): void {
+    private function handleWebSocketBusEvent(string $line): void
+    {
         $event = json_decode($line, true);
         if (!is_array($event) || (int) ($event['pid'] ?? 0) === getmypid()) {
             return;
@@ -1303,7 +1342,8 @@ class HttpServer {
         }
     }
 
-    private function normalizeWebSocketRoom(string $room): string {
+    private function normalizeWebSocketRoom(string $room): string
+    {
         $room = trim($room);
         if ($room === '') {
             return 'global';
@@ -1313,14 +1353,16 @@ class HttpServer {
         return substr($room, 0, 96) ?: 'global';
     }
 
-    private function rememberWebSocketEvent(string $eventId): void {
+    private function rememberWebSocketEvent(string $eventId): void
+    {
         $this->webSocketSeenEvents[$eventId] = true;
         if (count($this->webSocketSeenEvents) > 4096) {
             $this->webSocketSeenEvents = array_slice($this->webSocketSeenEvents, -2048, null, true);
         }
     }
 
-    private function compactWebSocketBus(): void {
+    private function compactWebSocketBus(): void
+    {
         if ($this->workerId !== 1 || !is_file($this->webSocketBusFile)) {
             return;
         }
@@ -1356,7 +1398,8 @@ class HttpServer {
         }
     }
 
-    public function startSse(ServerRequest $request, ServerResponse $response, Connection $conn): void {
+    public function startSse(ServerRequest $request, ServerResponse $response, Connection $conn): void
+    {
         $request->setAttribute('__stream_started', true);
         if (!$this->authorizeSse($request)) {
             $this->sseAuthFailures++;
@@ -1393,13 +1436,15 @@ class HttpServer {
         }
     }
 
-    public function closeSse(Connection $conn): void {
+    public function closeSse(Connection $conn): void
+    {
         if ($conn->isSse()) {
             $this->closeConnection($conn);
         }
     }
 
-    public function sendSse(Connection $conn, mixed $data, ?string $event = null, ?string $id = null, ?int $retry = null): bool {
+    public function sendSse(Connection $conn, mixed $data, ?string $event = null, ?string $id = null, ?int $retry = null): bool
+    {
         if (!$conn->isSse() || !$conn->isAlive()) {
             return false;
         }
@@ -1423,7 +1468,8 @@ class HttpServer {
         return true;
     }
 
-    public function broadcastSse(string $path, mixed $data, ?string $event = 'message', bool $publish = true, string $channel = 'global'): int {
+    public function broadcastSse(string $path, mixed $data, ?string $event = 'message', bool $publish = true, string $channel = 'global'): int
+    {
         $channel = $this->normalizeSseChannel($channel);
         $payload = is_string($data) ? $data : json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($payload === false) {
@@ -1435,11 +1481,13 @@ class HttpServer {
         return $this->broadcastSseWithId($path, $payload, $event, $publish, $channel, $id);
     }
 
-    public function getLastSseEventId(): string {
+    public function getLastSseEventId(): string
+    {
         return $this->lastSseEventId;
     }
 
-    private function broadcastSseWithId(string $path, string $payload, ?string $event, bool $publish, string $channel, string $id): int {
+    private function broadcastSseWithId(string $path, string $payload, ?string $event, bool $publish, string $channel, string $id): int
+    {
         $sent = 0;
         $this->sseBroadcasts++;
         $this->rememberSseReplay($path, $channel, $payload, $event, $id);
@@ -1457,7 +1505,8 @@ class HttpServer {
         return $sent;
     }
 
-    private function publishSseBus(string $path, string $payload, ?string $event, string $channel, string $id): void {
+    private function publishSseBus(string $path, string $payload, ?string $event, string $channel, string $id): void
+    {
         $line = json_encode([
             'bus_id' => bin2hex(random_bytes(8)),
             'id' => $id,
@@ -1490,11 +1539,13 @@ class HttpServer {
         }
     }
 
-    private function shouldPublishSseBus(): bool {
+    private function shouldPublishSseBus(): bool
+    {
         return $this->sseBusType === 'redis' || ($this->sseBusType === 'file' && ($this->workerCount > 1 || $this->sseBusSingleWorker));
     }
 
-    private function pollSseBus(): void {
+    private function pollSseBus(): void
+    {
         if (!is_file($this->sseBusFile)) {
             return;
         }
@@ -1528,7 +1579,8 @@ class HttpServer {
         }
     }
 
-    private function handleSseBusEvent(string $line): void {
+    private function handleSseBusEvent(string $line): void
+    {
         $event = json_decode($line, true);
         if (!is_array($event) || (int) ($event['pid'] ?? 0) === getmypid()) {
             return;
@@ -1559,7 +1611,8 @@ class HttpServer {
         $this->sseBusDeliveries += max(0, $this->sseEventsSent - $before);
     }
 
-    private function authorizeSse(ServerRequest $request): bool {
+    private function authorizeSse(ServerRequest $request): bool
+    {
         if ($this->sseAuthToken === '') {
             return true;
         }
@@ -1575,7 +1628,8 @@ class HttpServer {
         return hash_equals($this->sseAuthToken, $token);
     }
 
-    private function sseLastEventId(ServerRequest $request): string {
+    private function sseLastEventId(ServerRequest $request): string
+    {
         $id = trim((string) $request->header('last-event-id', ''));
         if ($id !== '') {
             return substr($id, 0, 128);
@@ -1585,7 +1639,8 @@ class HttpServer {
         return $id === '' ? '' : substr($id, 0, 128);
     }
 
-    private function replaySse(Connection $conn, string $path, string $channel, string $lastEventId): void {
+    private function replaySse(Connection $conn, string $path, string $channel, string $lastEventId): void
+    {
         $this->sseReplayRequests++;
         $events = $this->sseReplayBuffer[$path][$channel] ?? [];
         $found = false;
@@ -1609,7 +1664,8 @@ class HttpServer {
         $this->sseReplayedEvents += $sent;
     }
 
-    private function rememberSseReplay(string $path, string $channel, string $payload, ?string $event, string $id): void {
+    private function rememberSseReplay(string $path, string $channel, string $payload, ?string $event, string $id): void
+    {
         if ($this->sseReplayLimit <= 0) {
             return;
         }
@@ -1626,19 +1682,22 @@ class HttpServer {
         }
     }
 
-    private function nextSseEventId(): string {
+    private function nextSseEventId(): string
+    {
         $this->sseEventSequence++;
         return sprintf('%d-%d-%d', (int) floor(microtime(true) * 1000), $this->workerId, $this->sseEventSequence);
     }
 
-    private function rememberSseEvent(string $eventId): void {
+    private function rememberSseEvent(string $eventId): void
+    {
         $this->sseSeenEvents[$eventId] = true;
         if (count($this->sseSeenEvents) > 4096) {
             $this->sseSeenEvents = array_slice($this->sseSeenEvents, -2048, null, true);
         }
     }
 
-    private function compactSseBus(): void {
+    private function compactSseBus(): void
+    {
         if ($this->workerId !== 1 || !is_file($this->sseBusFile)) {
             return;
         }
@@ -1674,7 +1733,8 @@ class HttpServer {
         }
     }
 
-    private function normalizeSseChannel(string $channel): string {
+    private function normalizeSseChannel(string $channel): string
+    {
         $channel = trim($channel);
         if ($channel === '') {
             return 'global';
@@ -1684,7 +1744,8 @@ class HttpServer {
         return substr($channel, 0, 96) ?: 'global';
     }
 
-    private function sendSseHeartbeats(): void {
+    private function sendSseHeartbeats(): void
+    {
         foreach ($this->connections as $conn) {
             if (!$conn->isSse() || !$conn->isAlive()) {
                 continue;
@@ -1707,7 +1768,8 @@ class HttpServer {
         }
     }
 
-    private function formatSse(mixed $data, ?string $event, ?string $id, ?int $retry): string {
+    private function formatSse(mixed $data, ?string $event, ?string $id, ?int $retry): string
+    {
         if (!is_string($data)) {
             $encoded = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             $data = $encoded === false ? '' : $encoded;
@@ -1730,7 +1792,8 @@ class HttpServer {
         return $payload . "\n";
     }
 
-    public function closeWebSocket(Connection $conn, int $code = 1000, string $reason = ''): void {
+    public function closeWebSocket(Connection $conn, int $code = 1000, string $reason = ''): void
+    {
         if (!$conn->isWebSocket() || $conn->isClosing()) {
             $this->closeConnection($conn);
             return;
@@ -1747,7 +1810,8 @@ class HttpServer {
         $this->closeConnection($conn);
     }
 
-    private function dispatchRequest(ServerRequest $request, ServerResponse $response, Connection $conn): void {
+    private function dispatchRequest(ServerRequest $request, ServerResponse $response, Connection $conn): void
+    {
         try {
             if (!$this->runtimeSafetyEnabled && empty($this->middleware)) {
                 if ($this->requestHandler) {
@@ -1806,7 +1870,8 @@ class HttpServer {
         $this->sendResponse($conn, $response);
     }
 
-    private function handleRequestAsync(ServerRequest $request, ServerResponse $response, Connection $conn, \Generator $pendingMiddleware): \Generator {
+    private function handleRequestAsync(ServerRequest $request, ServerResponse $response, Connection $conn, \Generator $pendingMiddleware): \Generator
+    {
         try {
             yield from $pendingMiddleware;
             if ($response->isSent()) {
@@ -1856,7 +1921,8 @@ class HttpServer {
         }
     }
 
-    private function resumeHandler(\Generator $gen, ServerRequest $request, ServerResponse $response, Connection $conn): \Generator {
+    private function resumeHandler(\Generator $gen, ServerRequest $request, ServerResponse $response, Connection $conn): \Generator
+    {
         try {
             yield from $gen;
             if ($response->isSent() || $request->getAttribute('__stream_started', false)) {
@@ -1873,7 +1939,8 @@ class HttpServer {
         $this->sendResponse($conn, $response);
     }
 
-    private function handleError(\Throwable $e, ServerResponse $response): void {
+    private function handleError(\Throwable $e, ServerResponse $response): void
+    {
         $this->log("Error: " . $e->getMessage());
         if ($this->debug) {
             $response->json([
@@ -1886,7 +1953,8 @@ class HttpServer {
         }
     }
 
-    private function finishHttpRequest(ServerRequest $request, ServerResponse $response): void {
+    private function finishHttpRequest(ServerRequest $request, ServerResponse $response): void
+    {
         if ($this->runtimeSafetyEnabled) {
             $durationMs = max(0.0, (microtime(true) - $request->time) * 1000);
             $this->recordHttpMetrics($request->method, $request->path, $response->getStatus(), $durationMs);
@@ -1895,14 +1963,14 @@ class HttpServer {
             $this->httpStatusCounts[(string) $response->getStatus()] = ($this->httpStatusCounts[(string) $response->getStatus()] ?? 0) + 1;
             $this->httpLatencyCount++;
         }
-        
+
         // Close lifecycle owner first (cancel + close children + release resources)
         $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
         if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
             $lifecycleOwner->cancel();
             $lifecycleOwner->close();
         }
-        
+
         // Close request owner
         if (class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
             $ownerId = $request->getAttribute('__owner_id');
@@ -1914,7 +1982,7 @@ class HttpServer {
                 \Nexph\Runtime\Runtime::owners()->close($ownerId, 'request_completed');
             }
         }
-        
+
         if ($this->objectTrackingEnabled) {
             $context = (string) $request->getAttribute('__runtime_context', '');
             $this->objectTracker->release($request);
@@ -1926,7 +1994,8 @@ class HttpServer {
         $this->activeRequests = max(0, $this->activeRequests - 1);
     }
 
-    private function recordHttpMetrics(string $method, string $path, int $status, float $durationMs): void {
+    private function recordHttpMetrics(string $method, string $path, int $status, float $durationMs): void
+    {
         // Sampling: skip expensive work if not sampled
         if ($this->metricsSampleRate > 1) {
             $this->metricsSampleCounter++;
@@ -1982,7 +2051,8 @@ class HttpServer {
         }
     }
 
-    private function sendResponse(Connection $conn, ServerResponse $response): void {
+    private function sendResponse(Connection $conn, ServerResponse $response): void
+    {
         if (!$conn->isAlive()) {
             $this->releaseResponse($response);
             $this->closeConnection($conn);
@@ -2021,7 +2091,8 @@ class HttpServer {
         }
     }
 
-    private function sendError(Connection $conn, int $status, string $message): void {
+    private function sendError(Connection $conn, int $status, string $message): void
+    {
         $response = $this->acquireResponse();
         $response->json(['error' => $message], $status);
         $data = $response->build(false);
@@ -2039,13 +2110,15 @@ class HttpServer {
         $this->closeConnection($conn);
     }
 
-    private function acquireResponse(string $context = ''): ServerResponse {
+    private function acquireResponse(string $context = ''): ServerResponse
+    {
         /** @var ServerResponse $response */
         $response = $this->responsePool->acquire('http', $context);
         return $response;
     }
 
-    private function acquireRequest(array $parsed, Connection $conn): ServerRequest {
+    private function acquireRequest(array $parsed, Connection $conn): ServerRequest
+    {
         /** @var ServerRequest $request */
         $request = $this->requestPool->acquire('http', 'conn:' . $conn->getId());
         $request->hydrate($parsed, $conn);
@@ -2054,7 +2127,7 @@ class HttpServer {
             $lifecycleOwner->own($request);
             $request->setAttribute('__lifecycle_owner', $lifecycleOwner);
         }
-        
+
         // Track request with owner type 'request'
         if (class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
             $owner = \Nexph\Runtime\Runtime::owners()->open(
@@ -2063,12 +2136,12 @@ class HttpServer {
                 ['method' => $parsed['method'] ?? 'GET', 'path' => $parsed['path'] ?? '/']
             );
             $request->setAttribute('__owner_id', $owner->id()->toString());
-            
+
             // Track in-flight
             if (class_exists('\Nexph\Core\Drain\DrainController')) {
                 \Nexph\Core\Drain\DrainController::instance()->trackInFlight($owner->id());
             }
-            
+
             // Set context for request
             $traceId = bin2hex(random_bytes(16));
             \Nexph\Runtime\Runtime::withContext([
@@ -2076,21 +2149,24 @@ class HttpServer {
                 'request_id' => $request->getAttribute('__id', ''),
                 'owner_id' => $owner->id()->toString(),
                 'owner_type' => 'request',
-            ], function() {});
+            ], function () {});
         }
-        
+
         return $request;
     }
 
-    private function releaseRequest(ServerRequest $request): void {
+    private function releaseRequest(ServerRequest $request): void
+    {
         $this->requestPool->release($request);
     }
 
-    private function releaseResponse(ServerResponse $response): void {
+    private function releaseResponse(ServerResponse $response): void
+    {
         $this->responsePool->release($response);
     }
 
-    private function flushPending(Connection $conn, bool $closeWhenDone): void {
+    private function flushPending(Connection $conn, bool $closeWhenDone): void
+    {
         $socket = $conn->getSocket();
         if (!$socket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
             return;
@@ -2117,7 +2193,8 @@ class HttpServer {
         });
     }
 
-    private function closeConnection(Connection $conn): void {
+    private function closeConnection(Connection $conn): void
+    {
         $id = $conn->getId();
         $socket = $conn->getSocket();
         $wasWebSocket = $conn->isWebSocket();
@@ -2145,7 +2222,8 @@ class HttpServer {
         }
     }
 
-    private function leaveAllWebSocketRooms(Connection $conn): void {
+    private function leaveAllWebSocketRooms(Connection $conn): void
+    {
         $id = $conn->getId();
         foreach ($this->webSocketConnectionRooms[$id] ?? [] as $path => $rooms) {
             foreach ($rooms as $room => $_) {
@@ -2161,7 +2239,8 @@ class HttpServer {
         unset($this->webSocketConnectionRooms[$id]);
     }
 
-    private function cleanupConnections(): void {
+    private function cleanupConnections(): void
+    {
         $now = microtime(true);
         $timeout = $this->keepAliveTimeout;
         $cleaned = 0;
@@ -2191,7 +2270,8 @@ class HttpServer {
         }
     }
 
-    private function checkMemoryPressure(): void {
+    private function checkMemoryPressure(): void
+    {
         $usage = memory_get_usage(true);
         $ratio = $this->memoryLimit > 0 ? $usage / $this->memoryLimit : 0.0;
         $state = 'normal';
@@ -2218,7 +2298,8 @@ class HttpServer {
         }
     }
 
-    private function closeIdlePressureConnections(): void {
+    private function closeIdlePressureConnections(): void
+    {
         $now = microtime(true);
         $closed = 0;
         foreach ($this->connections as $conn) {
@@ -2246,7 +2327,8 @@ class HttpServer {
         $this->memoryPressureClosed += $closed;
     }
 
-    private function pauseAccepting(): void {
+    private function pauseAccepting(): void
+    {
         if (!$this->accepting || !$this->serverSocket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             $this->accepting = false;
             return;
@@ -2256,7 +2338,8 @@ class HttpServer {
         $this->loop->removeReader($this->serverSocket);
     }
 
-    private function resumeAccepting(): void {
+    private function resumeAccepting(): void
+    {
         if ($this->accepting || $this->draining || !$this->serverSocket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             return;
         }
@@ -2267,7 +2350,8 @@ class HttpServer {
         });
     }
 
-    public function gracefulShutdown(): void {
+    public function gracefulShutdown(): void
+    {
         if ($this->draining) {
             return;
         }
@@ -2275,7 +2359,7 @@ class HttpServer {
         $this->draining = true;
         $this->drainStartedAt = microtime(true);
         $this->pauseAccepting();
-        
+
         // Integrate with DrainController
         if (class_exists('\Nexph\Core\Drain\DrainController')) {
             \Nexph\Core\Drain\DrainController::instance()->stopAccepting();
@@ -2290,7 +2374,8 @@ class HttpServer {
         $this->checkDrain();
     }
 
-    private function checkDrain(): void {
+    private function checkDrain(): void
+    {
         if (!$this->draining) {
             return;
         }
@@ -2300,7 +2385,8 @@ class HttpServer {
         }
     }
 
-    private function checkWebSocketHeartbeats(): void {
+    private function checkWebSocketHeartbeats(): void
+    {
         if ($this->webSocketPingInterval <= 0) {
             return;
         }
@@ -2325,7 +2411,8 @@ class HttpServer {
         }
     }
 
-    public function shutdown(): void {
+    public function shutdown(): void
+    {
         if ($this->shuttingDown) {
             return;
         }
@@ -2365,12 +2452,14 @@ class HttpServer {
         $this->removeStatsFile();
     }
 
-    public function getStats(): array {
+    public function getStats(): array
+    {
         $this->publishStats();
         return $this->aggregateStats();
     }
 
-    public function getMetricsText(): string {
+    public function getMetricsText(): string
+    {
         $stats = $this->getStats();
         $lines = [
             '# HELP nexph_http_requests_total Total HTTP requests.',
@@ -2617,7 +2706,8 @@ class HttpServer {
         return implode("\n", $lines) . "\n";
     }
 
-    private function getLocalStats(): array {
+    private function getLocalStats(): array
+    {
         return [
             'pid' => getmypid(),
             'worker_id' => $this->workerId,
@@ -2735,13 +2825,15 @@ class HttpServer {
         ];
     }
 
-    private function prepareStatsDir(): void {
+    private function prepareStatsDir(): void
+    {
         if (!is_dir($this->statsDir)) {
             @mkdir($this->statsDir, 0775, true);
         }
     }
 
-    private function publishStats(): void {
+    private function publishStats(): void
+    {
         $this->prepareStatsDir();
 
         $file = $this->statsFile();
@@ -2757,7 +2849,8 @@ class HttpServer {
         }
     }
 
-    private function aggregateStats(): array {
+    private function aggregateStats(): array
+    {
         $now = microtime(true);
         $workers = [];
         $memoryCurrent = 0;
@@ -2880,7 +2973,7 @@ class HttpServer {
         foreach (glob($this->statsDir . '/worker-*.json') ?: [] as $file) {
             $json = @file_get_contents($file);
             $stats = $json ? json_decode($json, true) : null;
-            if (!is_array($stats) || ($now - (float)($stats['updated_at'] ?? 0)) > 15) {
+            if (!is_array($stats) || ($now - (float) ($stats['updated_at'] ?? 0)) > 15) {
                 @unlink($file);
                 continue;
             }
@@ -3021,22 +3114,26 @@ class HttpServer {
         ];
     }
 
-    private function metricFloat(mixed $value): string {
+    private function metricFloat(mixed $value): string
+    {
         return rtrim(rtrim(sprintf('%.6F', (float) $value), '0'), '.') ?: '0';
     }
 
-    private function metricLabel(string $value): string {
+    private function metricLabel(string $value): string
+    {
         return str_replace(["\\", "\n", '"'], ["\\\\", "\\n", '\\"'], $value);
     }
 
-    private function mergeCounterMap(array $base, array $next): array {
+    private function mergeCounterMap(array $base, array $next): array
+    {
         foreach ($next as $key => $value) {
             $base[(string) $key] = ($base[(string) $key] ?? 0) + (int) $value;
         }
         return $base;
     }
 
-    private function mergeObjectTrackerStats(array $base, array $next): array {
+    private function mergeObjectTrackerStats(array $base, array $next): array
+    {
         foreach (['active', 'tracked_total', 'released_total', 'retained', 'released_alive'] as $key) {
             $base[$key] = (int) ($base[$key] ?? 0) + (int) ($next[$key] ?? 0);
         }
@@ -3046,7 +3143,8 @@ class HttpServer {
         return $base;
     }
 
-    private function routeLatencyStats(): array {
+    private function routeLatencyStats(): array
+    {
         $stats = [];
         foreach ($this->httpRouteLatencySamples as $route => $sample) {
             $samples = $sample['values'] ?? [];
@@ -3062,7 +3160,8 @@ class HttpServer {
         return $stats;
     }
 
-    private function percentile(array $samples, float $percentile): float {
+    private function percentile(array $samples, float $percentile): float
+    {
         $count = count($samples);
         if ($count === 0) {
             return 0.0;
@@ -3071,7 +3170,8 @@ class HttpServer {
         return (float) $samples[$index];
     }
 
-    private function writeBufferStats(): array {
+    private function writeBufferStats(): array
+    {
         $bytes = 0;
         $max = 0;
         foreach ($this->connections as $conn) {
@@ -3086,13 +3186,15 @@ class HttpServer {
         ];
     }
 
-    private function normalizeMetricPath(string $path): string {
+    private function normalizeMetricPath(string $path): string
+    {
         $path = preg_replace('#/\d+(?=/|$)#', '/{id}', $path) ?? $path;
         $path = preg_replace('#/[0-9a-fA-F-]{16,}(?=/|$)#', '/{id}', $path) ?? $path;
         return $path === '' ? '/' : $path;
     }
 
-    private function aggregateMemoryTrend(array $workers): string {
+    private function aggregateMemoryTrend(array $workers): string
+    {
         $trend = 'stable';
         foreach ($workers as $worker) {
             $workerTrend = $worker['memory']['trend'] ?? 'stable';
@@ -3106,7 +3208,8 @@ class HttpServer {
         return $trend;
     }
 
-    private function countWebSockets(): int {
+    private function countWebSockets(): int
+    {
         $count = 0;
         foreach ($this->connections as $conn) {
             if ($conn->isWebSocket()) {
@@ -3116,7 +3219,8 @@ class HttpServer {
         return $count;
     }
 
-    private function countSseConnections(): int {
+    private function countSseConnections(): int
+    {
         $count = 0;
         foreach ($this->connections as $conn) {
             if ($conn->isSse()) {
@@ -3126,7 +3230,8 @@ class HttpServer {
         return $count;
     }
 
-    private function countSseReplayEvents(): int {
+    private function countSseReplayEvents(): int
+    {
         $count = 0;
         foreach ($this->sseReplayBuffer as $channels) {
             foreach ($channels as $events) {
@@ -3136,7 +3241,8 @@ class HttpServer {
         return $count;
     }
 
-    private function getWebSocketRoomStats(): array {
+    private function getWebSocketRoomStats(): array
+    {
         $rooms = 0;
         $memberships = 0;
         foreach ($this->webSocketRooms as $pathRooms) {
@@ -3151,15 +3257,18 @@ class HttpServer {
         ];
     }
 
-    private function statsFile(): string {
+    private function statsFile(): string
+    {
         return $this->statsDir . '/worker-' . $this->workerId . '-' . getmypid() . '.json';
     }
 
-    private function removeStatsFile(): void {
+    private function removeStatsFile(): void
+    {
         @unlink($this->statsFile());
     }
 
-    private function logStats(): void {
+    private function logStats(): void
+    {
         $stats = $this->getStats();
         $this->log(sprintf(
             "Stats: %d requests, %d/%d connections, %.1fMB memory, %d coroutines",
@@ -3171,19 +3280,23 @@ class HttpServer {
         ));
     }
 
-    private function log(string $message): void {
+    private function log(string $message): void
+    {
         ServerTUI::log($message);
     }
 
-    public function getLoop(): EventLoop {
+    public function getLoop(): EventLoop
+    {
         return $this->loop;
     }
 
-    public function getConfig(): array {
+    public function getConfig(): array
+    {
         return $this->config;
     }
 
-    private function parseRequestLineFast(string $buffer): ?array {
+    private function parseRequestLineFast(string $buffer): ?array
+    {
         $s1 = strpos($buffer, ' ');
         if ($s1 === false) {
             return null;
@@ -3199,27 +3312,31 @@ class HttpServer {
         return [$method, $path];
     }
 
-    public function fastJson(string $method, string $path, array|string $payload, int $status = 200, array $headers = []): self {
+    public function fastJson(string $method, string $path, array|string $payload, int $status = 200, array $headers = []): self
+    {
         $raw = RawResponseBuilder::json($status, $payload, $headers);
         $this->fastPath->register($method, $path, $raw);
         $this->fastEngine->register($method, $path, $raw);
         return $this;
     }
 
-    public function fastText(string $method, string $path, string $body, int $status = 200, array $headers = []): self {
+    public function fastText(string $method, string $path, string $body, int $status = 200, array $headers = []): self
+    {
         $raw = RawResponseBuilder::text($status, $body, $headers);
         $this->fastPath->register($method, $path, $raw);
         $this->fastEngine->register($method, $path, $raw);
         return $this;
     }
 
-    public function fastRaw(string $method, string $path, string $rawResponse): self {
+    public function fastRaw(string $method, string $path, string $rawResponse): self
+    {
         $this->fastPath->register($method, $path, $rawResponse);
         $this->fastEngine->register($method, $path, $rawResponse);
         return $this;
     }
 
-    public function fastCachedJson(string $method, string $path, callable $handler, int $ttl = 1): self {
+    public function fastCachedJson(string $method, string $path, callable $handler, int $ttl = 1): self
+    {
         $cacheKey = "fastpath:{$method}:{$path}";
         $cached = apcu_fetch($cacheKey, $success);
         if ($success) {
@@ -3233,17 +3350,18 @@ class HttpServer {
         return $this;
     }
 
-    public function fastCompressedJson(string $method, string $path, array|string $payload, int $status = 200, array $headers = []): self {
+    public function fastCompressedJson(string $method, string $path, array|string $payload, int $status = 200, array $headers = []): self
+    {
         if (!extension_loaded('zlib')) {
             return $this->fastJson($method, $path, $payload, $status, $headers);
         }
-        
+
         $json = is_string($payload) ? $payload : json_encode($payload);
         $compressed = gzencode($json, 6);
-        
+
         $headers['Content-Encoding'] = 'gzip';
         $headers['Vary'] = 'Accept-Encoding';
-        
+
         $raw = RawResponseBuilder::raw($status, $compressed, $headers);
         $this->fastPath->register($method, $path, $raw);
         return $this;

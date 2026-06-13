@@ -3,20 +3,22 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class StaticFiles {
+class StaticFiles
+{
     private string $root;
     private array $mimeTypes;
     private int $maxAge;
     private bool $etag;
 
-    public function __construct(string $root, array $options = []) {
+    public function __construct(string $root, array $options = [])
+    {
         $this->root = rtrim($root, '/');
         $this->maxAge = $options['max_age'] ?? 86400;
         $this->etag = $options['etag'] ?? true;
@@ -48,7 +50,8 @@ class StaticFiles {
         ], $options['mime_types'] ?? []);
     }
 
-    public function __invoke(ServerRequest $request, ServerResponse $response): \Generator {
+    public function __invoke(ServerRequest $request, ServerResponse $response): \Generator
+    {
         if ($request->method !== 'GET' && $request->method !== 'HEAD') {
             return;
         }
@@ -109,7 +112,8 @@ class StaticFiles {
         $response->markSent();
     }
 
-    public function serve(string $path): \Generator {
+    public function serve(string $path): \Generator
+    {
         $file = $this->root . '/' . ltrim($path, '/');
 
         if (!is_file($file)) {

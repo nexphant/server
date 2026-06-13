@@ -3,7 +3,7 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -12,7 +12,8 @@ namespace Nexph\Server\Server;
 
 use Nexph\Server\BufferSlab;
 
-class Connection {
+class Connection
+{
     private $socket;
     private BufferSlab $buffer;
     private BufferSlab $writeBuffer;
@@ -35,7 +36,8 @@ class Connection {
     private string $sseChannel = 'global';
     private bool $closing = false;
 
-    public function __construct($socket, int $id, ?BufferPool $bufferPool = null) {
+    public function __construct($socket, int $id, ?BufferPool $bufferPool = null)
+    {
         $this->socket = $socket;
         $this->id = $id;
         $this->bufferPool = $bufferPool;
@@ -52,7 +54,7 @@ class Connection {
         } else {
             stream_set_blocking($socket, false);
         }
-        
+
         // Track socket resource (skip if not object in PHP 8.0)
         if (class_exists('\Nexph\Core\Resource\ResourceRegistry') && class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
             if (is_object($socket)) {
@@ -82,23 +84,28 @@ class Connection {
         }
     }
 
-    public function getId(): int {
+    public function getId(): int
+    {
         return $this->id;
     }
 
-    public function getSocket() {
+    public function getSocket()
+    {
         return $this->socket;
     }
 
-    public function getRemoteAddr(): string {
+    public function getRemoteAddr(): string
+    {
         return $this->remoteAddr;
     }
 
-    public function getRemotePort(): int {
+    public function getRemotePort(): int
+    {
         return $this->remotePort;
     }
 
-    public function read(): ?string {
+    public function read(): ?string
+    {
         if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             return null;
         }
@@ -133,19 +140,23 @@ class Connection {
         return $data;
     }
 
-    public function getBuffer(): string {
+    public function getBuffer(): string
+    {
         return $this->buffer->get();
     }
 
-    public function consumeBuffer(int $length): void {
+    public function consumeBuffer(int $length): void
+    {
         $this->buffer->consume($length);
     }
 
-    public function clearBuffer(): void {
+    public function clearBuffer(): void
+    {
         $this->buffer->reset();
     }
 
-    public function write(string $data, int $maxBufferSize = 0): int {
+    public function write(string $data, int $maxBufferSize = 0): int
+    {
         if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             return -1;
         }
@@ -158,7 +169,8 @@ class Connection {
         return $this->flush();
     }
 
-    public function writeFast(string $data): int {
+    public function writeFast(string $data): int
+    {
         if ($this->socket instanceof \Socket) {
             $written = @socket_send($this->socket, $data, strlen($data), MSG_DONTWAIT);
             if ($written === false) {
@@ -172,7 +184,8 @@ class Connection {
         return $written === false ? -1 : $written;
     }
 
-    public function flush(): int {
+    public function flush(): int
+    {
         if ($this->writeBuffer->length() === 0) {
             return 0;
         }
@@ -206,15 +219,18 @@ class Connection {
         return $written;
     }
 
-    public function hasWriteBuffer(): bool {
+    public function hasWriteBuffer(): bool
+    {
         return $this->writeBuffer->length() > 0;
     }
 
-    public function getWriteBufferSize(): int {
+    public function getWriteBufferSize(): int
+    {
         return $this->writeBuffer->length();
     }
 
-    public function close(): void {
+    public function close(): void
+    {
         if (\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             if ($this->socket instanceof \Socket) {
                 @socket_close($this->socket);
@@ -233,65 +249,80 @@ class Connection {
         }
     }
 
-    public function isAlive(): bool {
+    public function isAlive(): bool
+    {
         return \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket);
     }
 
-    public function getLastActivity(): float {
+    public function getLastActivity(): float
+    {
         return $this->lastActivity;
     }
 
-    public function touch(): void {
+    public function touch(): void
+    {
         $this->lastActivity = microtime(true);
     }
 
-    public function getLastReadAt(): float {
+    public function getLastReadAt(): float
+    {
         return $this->lastReadAt;
     }
 
-    public function getLastWriteAt(): float {
+    public function getLastWriteAt(): float
+    {
         return $this->lastWriteAt;
     }
 
-    public function getLastPingAt(): float {
+    public function getLastPingAt(): float
+    {
         return $this->lastPingAt;
     }
 
-    public function markPing(): void {
+    public function markPing(): void
+    {
         $this->lastPingAt = microtime(true);
     }
 
-    public function getLastPongAt(): float {
+    public function getLastPongAt(): float
+    {
         return $this->lastPongAt;
     }
 
-    public function markPong(): void {
+    public function markPong(): void
+    {
         $this->lastPongAt = microtime(true);
         $this->lastReadAt = $this->lastPongAt;
         $this->lastActivity = max($this->lastActivity, $this->lastPongAt);
     }
 
-    public function getConnectedAt(): float {
+    public function getConnectedAt(): float
+    {
         return $this->connectedAt;
     }
 
-    public function setKeepAlive(bool $keepAlive): void {
+    public function setKeepAlive(bool $keepAlive): void
+    {
         $this->keepAlive = $keepAlive;
     }
 
-    public function isKeepAlive(): bool {
+    public function isKeepAlive(): bool
+    {
         return $this->keepAlive;
     }
 
-    public function incrementRequestCount(): void {
+    public function incrementRequestCount(): void
+    {
         $this->requestCount++;
     }
 
-    public function getRequestCount(): int {
+    public function getRequestCount(): int
+    {
         return $this->requestCount;
     }
 
-    public function markWebSocket(string $path): void {
+    public function markWebSocket(string $path): void
+    {
         $now = microtime(true);
         $this->webSocket = true;
         $this->webSocketPath = $path;
@@ -303,7 +334,8 @@ class Connection {
         $this->lastActivity = $now;
     }
 
-    public function markSse(string $path, string $channel = 'global'): void {
+    public function markSse(string $path, string $channel = 'global'): void
+    {
         $now = microtime(true);
         $this->sse = true;
         $this->ssePath = $path;
@@ -314,31 +346,38 @@ class Connection {
         $this->lastActivity = $now;
     }
 
-    public function isWebSocket(): bool {
+    public function isWebSocket(): bool
+    {
         return $this->webSocket;
     }
 
-    public function getWebSocketPath(): string {
+    public function getWebSocketPath(): string
+    {
         return $this->webSocketPath;
     }
 
-    public function isSse(): bool {
+    public function isSse(): bool
+    {
         return $this->sse;
     }
 
-    public function getSsePath(): string {
+    public function getSsePath(): string
+    {
         return $this->ssePath;
     }
 
-    public function getSseChannel(): string {
+    public function getSseChannel(): string
+    {
         return $this->sseChannel;
     }
 
-    public function markClosing(): void {
+    public function markClosing(): void
+    {
         $this->closing = true;
     }
 
-    public function isClosing(): bool {
+    public function isClosing(): bool
+    {
         return $this->closing;
     }
 }

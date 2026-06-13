@@ -3,7 +3,7 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -12,14 +12,17 @@ namespace Nexph\Server;
 
 use Nexph\Database\DB;
 
-class AsyncIO {
+class AsyncIO
+{
     private static ?EventLoop $loop = null;
 
-    public static function setLoop(EventLoop $loop): void {
+    public static function setLoop(EventLoop $loop): void
+    {
         self::$loop = $loop;
     }
 
-    public static function readFile(string $path): \Generator {
+    public static function readFile(string $path): \Generator
+    {
         $deferred = new Deferred();
 
         if (!file_exists($path)) {
@@ -36,7 +39,8 @@ class AsyncIO {
         return yield $deferred;
     }
 
-    public static function writeFile(string $path, string $content): \Generator {
+    public static function writeFile(string $path, string $content): \Generator
+    {
         $deferred = new Deferred();
 
         self::$loop?->defer(function () use ($path, $content, $deferred) {
@@ -51,7 +55,8 @@ class AsyncIO {
         return yield $deferred;
     }
 
-    public static function httpRequest(string $method, string $url, array $options = []): \Generator {
+    public static function httpRequest(string $method, string $url, array $options = []): \Generator
+    {
         $deferred = new Deferred();
 
         self::$loop?->defer(function () use ($method, $url, $options, $deferred) {
@@ -86,7 +91,8 @@ class AsyncIO {
         return yield $deferred;
     }
 
-    public static function tcpConnect(string $host, int $port, float $timeout = 5.0): \Generator {
+    public static function tcpConnect(string $host, int $port, float $timeout = 5.0): \Generator
+    {
         $deferred = new Deferred();
 
         $socket = @stream_socket_client(
@@ -112,11 +118,13 @@ class AsyncIO {
         return yield $deferred;
     }
 
-    public static function sleep(float $seconds): \Generator {
+    public static function sleep(float $seconds): \Generator
+    {
         return yield Coroutine::sleep($seconds);
     }
 
-    private static function buildHeaders(array $headers): string {
+    private static function buildHeaders(array $headers): string
+    {
         $lines = [];
         foreach ($headers as $name => $value) {
             $lines[] = "{$name}: {$value}";
@@ -124,7 +132,8 @@ class AsyncIO {
         return implode("\r\n", $lines);
     }
 
-    private static function parseHeaders(array $raw): array {
+    private static function parseHeaders(array $raw): array
+    {
         $headers = [];
         foreach ($raw as $line) {
             if (strpos($line, ':') !== false) {
@@ -136,12 +145,14 @@ class AsyncIO {
     }
 }
 
-class AsyncDatabase {
+class AsyncDatabase
+{
     private static ?EventLoop $loop = null;
     private static array $config = [];
     private static string $connection = 'default';
 
-    public static function setLoop(EventLoop $loop): void {
+    public static function setLoop(EventLoop $loop): void
+    {
         self::$loop = $loop;
         if (self::$config !== []) {
             $driver = DB::connection(self::$connection);
@@ -151,7 +162,8 @@ class AsyncDatabase {
         }
     }
 
-    public static function connect(array $config): void {
+    public static function connect(array $config): void
+    {
         self::close();
         self::$config = $config;
         self::$connection = (string) ($config['connection'] ?? 'default');
@@ -161,7 +173,8 @@ class AsyncDatabase {
         }
     }
 
-    public static function query(string $sql, array $params = []): \Generator {
+    public static function query(string $sql, array $params = []): \Generator
+    {
         $deferred = new Deferred();
 
         if (!self::$config) {
@@ -189,7 +202,8 @@ class AsyncDatabase {
         return yield $deferred;
     }
 
-    public static function insert(string $table, array $data): \Generator {
+    public static function insert(string $table, array $data): \Generator
+    {
         $columns = implode(', ', array_keys($data));
         $placeholders = implode(', ', array_fill(0, count($data), '?'));
         $sql = "INSERT INTO {$table} ({$columns}) VALUES ({$placeholders})";
@@ -223,18 +237,21 @@ class AsyncDatabase {
         return yield $deferred;
     }
 
-    public static function update(string $table, array $data, string $where, array $whereParams = []): \Generator {
+    public static function update(string $table, array $data, string $where, array $whereParams = []): \Generator
+    {
         $set = implode(', ', array_map(fn($k) => "{$k} = ?", array_keys($data)));
         $sql = "UPDATE {$table} SET {$set} WHERE {$where}";
         return yield from self::query($sql, array_merge(array_values($data), $whereParams));
     }
 
-    public static function delete(string $table, string $where, array $params = []): \Generator {
+    public static function delete(string $table, string $where, array $params = []): \Generator
+    {
         $sql = "DELETE FROM {$table} WHERE {$where}";
         return yield from self::query($sql, $params);
     }
 
-    public static function stats(): array {
+    public static function stats(): array
+    {
         $stats = DB::stats();
         return [
             'connected' => self::$config !== [],
@@ -266,19 +283,22 @@ class AsyncDatabase {
         ];
     }
 
-    public static function close(): void {
+    public static function close(): void
+    {
         if (self::$config !== []) {
             DB::disconnect(self::$connection);
         }
         self::$config = [];
     }
 
-    private static function returnsRows(string $sql): bool {
+    private static function returnsRows(string $sql): bool
+    {
         $verb = strtoupper(strtok(ltrim($sql), " \t\r\n(") ?: '');
         return in_array($verb, ['SELECT', 'PRAGMA', 'WITH', 'EXPLAIN', 'SHOW', 'DESCRIBE'], true);
     }
 
-    private static function resolveQuery(Deferred $deferred, string $sql, mixed $result): void {
+    private static function resolveQuery(Deferred $deferred, string $sql, mixed $result): void
+    {
         if ($result instanceof \Nexph\Database\Drivers\DriverResult) {
             $deferred->resolve(self::returnsRows($sql) ? $result->rows : $result->affectedRows);
             return;

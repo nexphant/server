@@ -3,14 +3,15 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class EventLoop {
+class EventLoop
+{
     private array $readers = [];
     private array $writers = [];
     private array $readerStreams = [];
@@ -36,14 +37,16 @@ class EventLoop {
     private int $maxWriteCallbacksPerTick = 64;
     private int $maxDeferredPerTick = 256;
 
-    public function __construct(?\Nexph\Runtime\EventLoop\EventLoopInterface $backend = null) {
+    public function __construct(?\Nexph\Runtime\EventLoop\EventLoopInterface $backend = null)
+    {
         $this->backend = $backend;
         $this->now = microtime(true);
         $this->timerQueue = new \SplPriorityQueue();
         $this->timerQueue->setExtractFlags(\SplPriorityQueue::EXTR_DATA);
     }
 
-    public function addReader($stream, callable $callback): void {
+    public function addReader($stream, callable $callback): void
+    {
         if ($this->backend) {
             $this->backend->onReadable($stream, $callback);
             return;
@@ -53,7 +56,8 @@ class EventLoop {
         $this->streamsDirty = true;
     }
 
-    public function removeReader($stream): void {
+    public function removeReader($stream): void
+    {
         if ($this->backend) {
             $this->backend->removeReadable($stream);
             return;
@@ -62,7 +66,8 @@ class EventLoop {
         $this->streamsDirty = true;
     }
 
-    public function addWriter($stream, callable $callback): void {
+    public function addWriter($stream, callable $callback): void
+    {
         if ($this->backend) {
             $this->backend->onWritable($stream, $callback);
             return;
@@ -72,7 +77,8 @@ class EventLoop {
         $this->streamsDirty = true;
     }
 
-    public function removeWriter($stream): void {
+    public function removeWriter($stream): void
+    {
         if ($this->backend) {
             $this->backend->removeWritable($stream);
             return;
@@ -81,7 +87,8 @@ class EventLoop {
         $this->streamsDirty = true;
     }
 
-    public function addTimer(float $interval, callable $callback, bool $periodic = false): int {
+    public function addTimer(float $interval, callable $callback, bool $periodic = false): int
+    {
         if ($this->backend) {
             return $this->backend->timer($interval, $callback, $periodic);
         }
@@ -97,7 +104,8 @@ class EventLoop {
         return $id;
     }
 
-    public function cancelTimer(int $id): void {
+    public function cancelTimer(int $id): void
+    {
         if ($this->backend) {
             $this->backend->cancelTimer($id);
             return;
@@ -105,17 +113,20 @@ class EventLoop {
         unset($this->timers[$id]);
     }
 
-    public function setMaxDeferred(int $maxDeferred): void {
+    public function setMaxDeferred(int $maxDeferred): void
+    {
         $this->maxDeferred = max(1, $maxDeferred);
     }
 
-    public function setFairnessLimits(int $maxRead, int $maxWrite, int $maxDeferred): void {
+    public function setFairnessLimits(int $maxRead, int $maxWrite, int $maxDeferred): void
+    {
         $this->maxReadCallbacksPerTick = max(1, $maxRead);
         $this->maxWriteCallbacksPerTick = max(1, $maxWrite);
         $this->maxDeferredPerTick = max(1, $maxDeferred);
     }
 
-    public function defer(callable $callback): bool {
+    public function defer(callable $callback): bool
+    {
         if ($this->deferredCount >= $this->maxDeferred) {
             $this->deferredDropped++;
             return false;
@@ -125,7 +136,7 @@ class EventLoop {
         $this->deferredCount++;
 
         if ($this->backend && $this->deferredTimerId === null && $this->running) {
-            $this->deferredTimerId = $this->backend->timer(0.001, function() {
+            $this->deferredTimerId = $this->backend->timer(0.001, function () {
                 $this->processDeferredQueue();
             }, true);
         }
@@ -133,7 +144,8 @@ class EventLoop {
         return true;
     }
 
-    public function addSignal(int $signal, callable $callback): void {
+    public function addSignal(int $signal, callable $callback): void
+    {
         if (function_exists('pcntl_signal')) {
             pcntl_async_signals(true);
             pcntl_signal($signal, function ($sig) use ($callback) {
@@ -143,7 +155,8 @@ class EventLoop {
         }
     }
 
-    public function run(): void {
+    public function run(): void
+    {
         if ($this->backend) {
             $this->running = true;
             $this->backend->run();
@@ -158,14 +171,16 @@ class EventLoop {
         }
     }
 
-    public function stop(): void {
+    public function stop(): void
+    {
         if ($this->backend) {
             $this->backend->stop();
         }
         $this->running = false;
     }
 
-    private function processDeferredQueue(): void {
+    private function processDeferredQueue(): void
+    {
         if ($this->deferredCount === 0) {
             if ($this->backend && $this->deferredTimerId !== null) {
                 $this->backend->cancelTimer($this->deferredTimerId);
@@ -197,7 +212,8 @@ class EventLoop {
         }
     }
 
-    public function tick(): void {
+    public function tick(): void
+    {
         $this->tickCount++;
         $this->now = microtime(true);
 
@@ -241,7 +257,8 @@ class EventLoop {
         // Handle readable
         $readCount = 0;
         foreach ($read as $stream) {
-            if ($readCount++ >= $this->maxReadCallbacksPerTick) break;
+            if ($readCount++ >= $this->maxReadCallbacksPerTick)
+                break;
             $id = (int) $stream;
             if (isset($this->readers[$id])) {
                 ($this->readers[$id]['callback'])($stream);
@@ -251,7 +268,8 @@ class EventLoop {
         // Handle writable
         $writeCount = 0;
         foreach ($write as $stream) {
-            if ($writeCount++ >= $this->maxWriteCallbacksPerTick) break;
+            if ($writeCount++ >= $this->maxWriteCallbacksPerTick)
+                break;
             $id = (int) $stream;
             if (isset($this->writers[$id])) {
                 ($this->writers[$id]['callback'])($stream);
@@ -259,7 +277,8 @@ class EventLoop {
         }
     }
 
-    private function calculateTimeout(): float {
+    private function calculateTimeout(): float
+    {
         if ($this->deferredCount > 0) {
             return 0;
         }
@@ -272,15 +291,18 @@ class EventLoop {
         return min(1.0, max(0.0, $next - $this->now));
     }
 
-    public function isRunning(): bool {
+    public function isRunning(): bool
+    {
         return $this->running;
     }
 
-    public function now(): float {
+    public function now(): float
+    {
         return $this->now;
     }
 
-    private function cleanupInvalidStreams(): void {
+    private function cleanupInvalidStreams(): void
+    {
         foreach ($this->readers as $id => $entry) {
             if (!is_resource($entry['stream'])) {
                 unset($this->readers[$id]);
@@ -293,39 +315,48 @@ class EventLoop {
         }
     }
 
-    public function getReaderCount(): int {
+    public function getReaderCount(): int
+    {
         return count($this->readers);
     }
 
-    public function getWriterCount(): int {
+    public function getWriterCount(): int
+    {
         return count($this->writers);
     }
 
-    public function getTimerCount(): int {
+    public function getTimerCount(): int
+    {
         return count($this->timers);
     }
 
-    public function getDeferredCount(): int {
+    public function getDeferredCount(): int
+    {
         return $this->deferredCount;
     }
 
-    public function getDeferredDroppedCount(): int {
+    public function getDeferredDroppedCount(): int
+    {
         return $this->deferredDropped;
     }
 
-    public function getMaxDeferred(): int {
+    public function getMaxDeferred(): int
+    {
         return $this->maxDeferred;
     }
 
-    public function getTickCount(): int {
+    public function getTickCount(): int
+    {
         return $this->tickCount;
     }
 
-    public function getLastTickDurationMs(): float {
+    public function getLastTickDurationMs(): float
+    {
         return $this->lastTickDurationMs;
     }
 
-    private function processTimers(): void {
+    private function processTimers(): void
+    {
         while (($next = $this->nextTimerAt()) !== null && $next <= $this->now) {
             $id = $this->timerQueue->extract();
             if (!isset($this->timers[$id])) {
@@ -352,7 +383,8 @@ class EventLoop {
         }
     }
 
-    private function nextTimerAt(): ?float {
+    private function nextTimerAt(): ?float
+    {
         while (!$this->timerQueue->isEmpty()) {
             $id = $this->timerQueue->current();
             if (!isset($this->timers[$id])) {

@@ -3,14 +3,15 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
 namespace Nexph\Server;
 
-class WebSocketRedisBus {
+class WebSocketRedisBus
+{
     private string $host = '127.0.0.1';
     private int $port = 6379;
     private ?string $password = null;
@@ -23,7 +24,8 @@ class WebSocketRedisBus {
     private int $received = 0;
     private int $errors = 0;
 
-    public function __construct(string $url = 'redis://127.0.0.1:6379/0', string $channel = 'nexph:websocket') {
+    public function __construct(string $url = 'redis://127.0.0.1:6379/0', string $channel = 'nexph:websocket')
+    {
         $parts = parse_url($url) ?: [];
         $this->host = (string) ($parts['host'] ?? $this->host);
         $this->port = (int) ($parts['port'] ?? $this->port);
@@ -32,7 +34,8 @@ class WebSocketRedisBus {
         $this->channel = $channel;
     }
 
-    public function start(EventLoop $loop, callable $onEvent): void {
+    public function start(EventLoop $loop, callable $onEvent): void
+    {
         $this->subscriber = $this->connect();
         if (!$this->subscriber) {
             return;
@@ -45,7 +48,8 @@ class WebSocketRedisBus {
         });
     }
 
-    public function publish(string $payload): void {
+    public function publish(string $payload): void
+    {
         if (!$this->publisher || !is_resource($this->publisher)) {
             $this->publisher = $this->connect();
         }
@@ -59,7 +63,8 @@ class WebSocketRedisBus {
         $this->published++;
     }
 
-    public function stats(): array {
+    public function stats(): array
+    {
         return [
             'type' => 'redis',
             'channel' => $this->channel,
@@ -70,7 +75,8 @@ class WebSocketRedisBus {
         ];
     }
 
-    public function close(): void {
+    public function close(): void
+    {
         foreach ([$this->publisher, $this->subscriber] as $socket) {
             if (is_resource($socket)) {
                 @fclose($socket);
@@ -80,7 +86,8 @@ class WebSocketRedisBus {
         $this->subscriber = null;
     }
 
-    private function connect() {
+    private function connect()
+    {
         $socket = @stream_socket_client("tcp://{$this->host}:{$this->port}", $errno, $errstr, 1.0);
         if (!$socket) {
             $this->errors++;
@@ -102,7 +109,8 @@ class WebSocketRedisBus {
         return $socket;
     }
 
-    private function commandOk($socket, array $parts): bool {
+    private function commandOk($socket, array $parts): bool
+    {
         if (!$this->writeCommand($socket, $parts)) {
             return false;
         }
@@ -110,7 +118,8 @@ class WebSocketRedisBus {
         return is_string($line) && ($line[0] ?? '') === '+';
     }
 
-    private function writeCommand($socket, array $parts): bool {
+    private function writeCommand($socket, array $parts): bool
+    {
         $command = '*' . count($parts) . "\r\n";
         foreach ($parts as $part) {
             $part = (string) $part;
@@ -119,7 +128,8 @@ class WebSocketRedisBus {
         return @fwrite($socket, $command) !== false;
     }
 
-    private function read(callable $onEvent): void {
+    private function read(callable $onEvent): void
+    {
         if (!is_resource($this->subscriber)) {
             return;
         }
@@ -139,7 +149,8 @@ class WebSocketRedisBus {
         }
     }
 
-    private function readRespArray(string &$buffer): ?array {
+    private function readRespArray(string &$buffer): ?array
+    {
         if ($buffer === '' || $buffer[0] !== '*') {
             return null;
         }

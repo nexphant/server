@@ -3,7 +3,7 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -12,25 +12,30 @@ namespace Nexph\Server;
 
 use Nexph\Runtime\JsonSerializer;
 
-class ServerResponse extends \Nexph\Response {
-    public function status(int $code): self {
+class ServerResponse extends \Nexph\Response
+{
+    public function status(int $code): self
+    {
         $this->status = $code;
         return $this;
     }
 
-    public function header(string $name, string $value): self {
+    public function header(string $name, string $value): self
+    {
         $this->headers[$name] = $value;
         return $this;
     }
 
-    public function headers(array $headers): self {
+    public function headers(array $headers): self
+    {
         foreach ($headers as $name => $value) {
             $this->headers[$name] = $value;
         }
         return $this;
     }
 
-    public function cookie(string $name, string $value, array $options = []): self {
+    public function cookie(string $name, string $value, array $options = []): self
+    {
         $cookie = urlencode($name) . '=' . urlencode($value);
 
         if (isset($options['expires'])) {
@@ -59,57 +64,67 @@ class ServerResponse extends \Nexph\Response {
         return $this;
     }
 
-    public function body(string $body): self {
+    public function body(string $body): self
+    {
         $this->body = $body;
         return $this;
     }
 
-    public function rawHttp(string $response): self {
+    public function rawHttp(string $response): self
+    {
         $this->raw = $response;
         return $this;
     }
 
-    public function cacheAs(string $key): self {
+    public function cacheAs(string $key): self
+    {
         $this->cacheKey = $key;
         return $this;
     }
 
-    public function json(mixed $data, int $status = 200): self {
+    public function json(mixed $data, int $status = 200): self
+    {
         $this->status = $status;
         $this->headers['Content-Type'] = 'application/json';
         $this->body = JsonSerializer::encode($data);
         return $this;
     }
 
-    public function html(string $html, int $status = 200): self {
+    public function html(string $html, int $status = 200): self
+    {
         $this->status = $status;
         $this->headers['Content-Type'] = 'text/html; charset=utf-8';
         $this->body = $html;
         return $this;
     }
 
-    public function text(string $text, int $status = 200): self {
+    public function text(string $text, int $status = 200): self
+    {
         $this->status = $status;
         $this->headers['Content-Type'] = 'text/plain; charset=utf-8';
         $this->body = $text;
         return $this;
     }
 
-    public function redirect(string $url, int $status = 302): self {
+    public function redirect(string $url, int $status = 302): self
+    {
         $this->status = $status;
         $this->headers['Location'] = $url;
         return $this;
     }
 
-    public function notFound(string $message = 'Not Found'): self {
+    public function notFound(string $message = 'Not Found'): self
+    {
         return $this->json(['error' => $message], 404);
     }
 
-    public function error(string $message = 'Internal Server Error', int $status = 500): self {
+    public function error(string $message = 'Internal Server Error', int $status = 500): self
+    {
         return $this->json(['error' => $message], $status);
     }
 
-    public function build(bool $keepAlive = true): string {
+    public function build(bool $keepAlive = true): string
+    {
         if ($this->raw !== null) {
             $this->sent = true;
             return $this->raw;
@@ -151,28 +166,34 @@ class ServerResponse extends \Nexph\Response {
         return HttpParser::buildResponse($this->status, $headers, $this->body);
     }
 
-    public function isSent(): bool {
+    public function isSent(): bool
+    {
         return $this->sent;
     }
 
-    public function markSent(): self {
+    public function markSent(): self
+    {
         $this->sent = true;
         return $this;
     }
 
-    public function getStatus(): int {
+    public function getStatus(): int
+    {
         return $this->status;
     }
 
-    public function getBody(): string {
+    public function getBody(): string
+    {
         return $this->body;
     }
 
-    public function getCacheKey(): ?string {
+    public function getCacheKey(): ?string
+    {
         return $this->cacheKey;
     }
 
-    public function isClean(): bool {
+    public function isClean(): bool
+    {
         return $this->status === 200 &&
             $this->headers === [] &&
             $this->body === '' &&
@@ -182,7 +203,8 @@ class ServerResponse extends \Nexph\Response {
             $this->cookies === [];
     }
 
-    public function reset(): void {
+    public function reset(): void
+    {
         $this->status = 200;
         $this->headers = [];
         $this->body = '';

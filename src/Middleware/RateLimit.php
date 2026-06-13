@@ -3,7 +3,7 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -13,17 +13,20 @@ namespace Nexph\Server\Middleware;
 use Nexph\Server\ServerRequest;
 use Nexph\Server\ServerResponse;
 
-class RateLimit {
+class RateLimit
+{
     private array $buckets = [];
     private int $maxRequests;
     private int $window;
 
-    public function __construct(int $maxRequests = 100, int $window = 60) {
+    public function __construct(int $maxRequests = 100, int $window = 60)
+    {
         $this->maxRequests = $maxRequests;
         $this->window = $window;
     }
 
-    public function __invoke(ServerRequest $request, ServerResponse $response): bool {
+    public function __invoke(ServerRequest $request, ServerResponse $response): bool
+    {
         $key = $request->remoteAddr;
         $now = time();
 
@@ -54,7 +57,8 @@ class RateLimit {
         return true;
     }
 
-    public function cleanup(): void {
+    public function cleanup(): void
+    {
         $now = time();
         foreach ($this->buckets as $key => $bucket) {
             if ($now > $bucket['reset'] + 60) {

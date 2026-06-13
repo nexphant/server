@@ -3,7 +3,7 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -13,14 +13,17 @@ namespace Nexph\Server\Middleware;
 use Nexph\Server\ServerRequest;
 use Nexph\Server\ServerResponse;
 
-class Timeout {
+class Timeout
+{
     private float $seconds;
 
-    public function __construct(float $seconds = 30.0) {
+    public function __construct(float $seconds = 30.0)
+    {
         $this->seconds = $seconds;
     }
 
-    public function __invoke(ServerRequest $request, ServerResponse $response): \Generator {
+    public function __invoke(ServerRequest $request, ServerResponse $response): \Generator
+    {
         $elapsed = microtime(true) - $request->time;
         if ($elapsed > $this->seconds) {
             $response->json(['error' => 'Request timeout'], 408);

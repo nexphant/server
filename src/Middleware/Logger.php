@@ -3,7 +3,7 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -13,14 +13,17 @@ namespace Nexph\Server\Middleware;
 use Nexph\Server\ServerRequest;
 use Nexph\Server\ServerResponse;
 
-class Logger {
+class Logger
+{
     private string $format;
 
-    public function __construct(string $format = 'combined') {
+    public function __construct(string $format = 'combined')
+    {
         $this->format = $format;
     }
 
-    public function __invoke(ServerRequest $request, ServerResponse $response): void {
+    public function __invoke(ServerRequest $request, ServerResponse $response): void
+    {
         $start = $request->time;
 
         register_shutdown_function(function () use ($request, $response, $start) {
@@ -29,7 +32,8 @@ class Logger {
         });
     }
 
-    private function log(ServerRequest $request, ServerResponse $response, float $duration): void {
+    private function log(ServerRequest $request, ServerResponse $response, float $duration): void
+    {
         $line = sprintf(
             '%s - - [%s] "%s %s" %d %d %.2fms',
             $request->remoteAddr,

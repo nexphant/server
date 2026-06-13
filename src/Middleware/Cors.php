@@ -3,7 +3,7 @@
 /**
  * This file is part of the Nexph Framework.
  *
- * (c) Nexphlabs <https://github.com/nexphlabs>
+ * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -13,10 +13,12 @@ namespace Nexph\Server\Middleware;
 use Nexph\Server\ServerRequest;
 use Nexph\Server\ServerResponse;
 
-class Cors {
+class Cors
+{
     private array $options;
 
-    public function __construct(array $options = []) {
+    public function __construct(array $options = [])
+    {
         $this->options = array_merge([
             'origin' => '*',
             'methods' => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
@@ -26,7 +28,8 @@ class Cors {
         ], $options);
     }
 
-    public function __invoke(ServerRequest $request, ServerResponse $response): bool {
+    public function __invoke(ServerRequest $request, ServerResponse $response): bool
+    {
         $origin = $this->options['origin'];
         if (is_array($origin)) {
             $requestOrigin = $request->header('origin', '');
