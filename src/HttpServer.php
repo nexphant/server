@@ -12,6 +12,7 @@ namespace Nexph\Server;
 
 use Nexph\Server\Server\Connection;
 use Nexph\Server\Server\BufferPool;
+use Nexph\Server\Server\NativeFastLoop;
 use Nexph\Runtime\MemoryMonitor;
 use Nexph\Runtime\ResponseCache;
 use Nexph\Runtime\Adaptive\AdaptiveRuntime;
@@ -38,19 +39,6 @@ class HttpServer
     private bool $quiet = false;
     private ?AdaptiveRuntime $adaptive = null;
     private ?\Nexph\Lifecycle\Owner $workerOwner = null;
-    private ?\EventBase $directBase = null;
-    private array $directReadEvents = [];
-    private array $directWriteEvents = [];
-    private array $directSignalEvents = [];
-    private array $directBuffers = [];
-    private array $directWriteBuffers = [];
-    private array $directRequestCounts = [];
-    private array $directSockets = [];
-    private int $directSocketCount = 0;
-    private string $directPrimaryStartLine = '';
-    private int $directPrimaryStartLineLength = 0;
-    private string $directPrimaryKeepAliveResponse = '';
-    private string $directPrimaryCloseResponse = '';
 
     // Config
     private string $host = '0.0.0.0';
@@ -416,8 +404,7 @@ class HttpServer
     {
         return !$this->runtimeSafetyEnabled &&
             ($this->config['direct_fast_loop'] ?? false) &&
-            extension_loaded('event') &&
-            extension_loaded('sockets') &&
+            NativeFastLoop::supported() &&
             empty($this->middleware) &&
             empty($this->webSocketHandlers) &&
             $this->fastEngine->hasRoutes() &&
@@ -426,184 +413,14 @@ class HttpServer
 
     private function runDirectFastLoop(): void
     {
-        $this->directBase = new \EventBase();
-        $this->directPrimaryStartLine = $this->fastEngine->primaryStartLine();
-        $this->directPrimaryStartLineLength = $this->fastEngine->primaryStartLineLength();
-        $this->directPrimaryKeepAliveResponse = $this->fastEngine->primaryKeepAliveResponse();
-        $this->directPrimaryCloseResponse = $this->fastEngine->primaryCloseResponse();
-        $accept = new \Event($this->directBase, $this->serverSocket, \Event::READ | \Event::PERSIST, function (): void {
-            $this->directAcceptConnections();
-        });
-        $accept->add();
-        $this->directSignal(SIGINT);
-        $this->directSignal(SIGTERM);
-        $this->directBase->loop();
-    }
-
-    private function directSignal(int $signal): void
-    {
-        if (!defined('SIGINT')) {
-            return;
-        }
-        $event = \Event::signal($this->directBase, $signal, function (): void {
-            $this->directBase?->stop();
-        });
-        $event->add();
-        $this->directSignalEvents[$signal] = $event;
-    }
-
-    private function directAcceptConnections(): void
-    {
-        for ($i = 0; $i < $this->maxAcceptPerTick; $i++) {
-            $client = $this->socketDriver?->accept($this->serverSocket);
-            if (!$client) {
-                return;
-            }
-            if ($this->directSocketCount >= $this->maxConnections) {
-                @socket_close($client);
-                continue;
-            }
-            $id = spl_object_id($client);
-            $this->directSockets[$id] = $client;
-            $this->directSocketCount++;
-            $this->directBuffers[$id] = '';
-            $this->directWriteBuffers[$id] = '';
-            $this->directRequestCounts[$id] = 0;
-            $event = new \Event($this->directBase, $client, \Event::READ | \Event::PERSIST, function () use ($client, $id): void {
-                $this->directRead($client, $id);
-            });
-            $event->add();
-            $this->directReadEvents[$id] = $event;
-        }
-    }
-
-    private function directRead(\Socket $socket, int $id): void
-    {
-        $chunk = '';
-        $bytes = @socket_recv($socket, $chunk, 65536, MSG_DONTWAIT);
-        if ($bytes === false) {
-            $error = socket_last_error($socket);
-            if ($error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) {
-                return;
-            }
-            $this->directClose($id);
-            return;
-        }
-        if ($bytes === 0) {
-            $this->directClose($id);
-            return;
-        }
-        $this->directBuffers[$id] = $this->directBuffers[$id] === '' ? $chunk : $this->directBuffers[$id] . $chunk;
-
-        while ($this->directBuffers[$id] !== '') {
-            $buffer = $this->directBuffers[$id];
-            if ($this->directPrimaryStartLine !== '' && strncmp($buffer, $this->directPrimaryStartLine, $this->directPrimaryStartLineLength) === 0) {
-                $primary = strpos($buffer, "\r\n\r\n", $this->directPrimaryStartLineLength);
-                if ($primary === false) {
-                    return;
-                }
-                $primary += 4;
-                $keepAlive = $this->directRequestCounts[$id] + 1 < $this->maxRequestsPerConnection;
-                $this->directBuffers[$id] = $primary === strlen($buffer) ? '' : substr($buffer, $primary);
-                $this->directRequestCounts[$id]++;
-                $this->directWrite($socket, $id, $keepAlive ? $this->directPrimaryKeepAliveResponse : $this->directPrimaryCloseResponse, !$keepAlive);
-                if (!$keepAlive || ($this->directWriteBuffers[$id] ?? '') !== '') {
-                    return;
-                }
-                continue;
-            }
-
-            $match = $this->fastEngine->match($buffer);
-            if ($match === null) {
-                if (strpos($buffer, "\r\n\r\n") === false) {
-                    return;
-                }
-                $this->directWrite($socket, $id, "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nContent-Length: 21\r\nConnection: close\r\n\r\n{\"error\":\"Not Found\"}", true);
-                return;
-            }
-
-            $this->directBuffers[$id] = $match['consumed'] === strlen($buffer) ? '' : substr($buffer, $match['consumed']);
-            $this->directRequestCounts[$id]++;
-            $keepAlive = $match['keep_alive'] && $this->directRequestCounts[$id] < $this->maxRequestsPerConnection;
-            $this->directWrite($socket, $id, $this->fastEngine->getResponse($match['key'], $keepAlive), !$keepAlive);
-            if (!$keepAlive || ($this->directWriteBuffers[$id] ?? '') !== '') {
-                return;
-            }
-        }
-    }
-
-    private function directWrite(\Socket $socket, int $id, string $data, bool $closeWhenDone): void
-    {
-        $length = strlen($data);
-        $written = @socket_send($socket, $data, $length, MSG_DONTWAIT);
-        if ($written === false) {
-            $error = socket_last_error($socket);
-            if ($error !== SOCKET_EAGAIN && $error !== SOCKET_EWOULDBLOCK) {
-                $this->directClose($id);
-                return;
-            }
-            $written = 0;
-        }
-        if ($written < $length) {
-            $this->directWriteBuffers[$id] .= substr($data, $written);
-            $this->directFlushLater($socket, $id, $closeWhenDone);
-            return;
-        }
-        if ($closeWhenDone) {
-            $this->directClose($id);
-        }
-    }
-
-    private function directFlushLater(\Socket $socket, int $id, bool $closeWhenDone): void
-    {
-        if (isset($this->directWriteEvents[$id])) {
-            return;
-        }
-        $event = new \Event($this->directBase, $socket, \Event::WRITE | \Event::PERSIST, function () use ($socket, $id, $closeWhenDone): void {
-            $buffer = $this->directWriteBuffers[$id] ?? '';
-            if ($buffer === '') {
-                $this->directWriteEvents[$id]->del();
-                unset($this->directWriteEvents[$id]);
-                if ($closeWhenDone) {
-                    $this->directClose($id);
-                }
-                return;
-            }
-            $written = @socket_send($socket, $buffer, strlen($buffer), MSG_DONTWAIT);
-            if ($written === false) {
-                $error = socket_last_error($socket);
-                if ($error === SOCKET_EAGAIN || $error === SOCKET_EWOULDBLOCK) {
-                    return;
-                }
-                $this->directClose($id);
-                return;
-            }
-            $this->directWriteBuffers[$id] = substr($buffer, $written);
-        });
-        $event->add();
-        $this->directWriteEvents[$id] = $event;
-    }
-
-    private function directClose(int $id): void
-    {
-        if (isset($this->directReadEvents[$id])) {
-            $this->directReadEvents[$id]->del();
-            unset($this->directReadEvents[$id]);
-        }
-        if (isset($this->directWriteEvents[$id])) {
-            $this->directWriteEvents[$id]->del();
-            unset($this->directWriteEvents[$id]);
-        }
-        if (isset($this->directSockets[$id])) {
-            @socket_close($this->directSockets[$id]);
-            $this->directSocketCount--;
-        }
-        unset(
-            $this->directSockets[$id],
-            $this->directBuffers[$id],
-            $this->directWriteBuffers[$id],
-            $this->directRequestCounts[$id]
-        );
+        (new NativeFastLoop(
+            $this->socketDriver,
+            $this->serverSocket,
+            $this->fastEngine,
+            $this->maxConnections,
+            $this->maxAcceptPerTick,
+            $this->maxRequestsPerConnection
+        ))->run();
     }
 
     private function setupSignals(): void
@@ -3341,11 +3158,13 @@ class HttpServer
         $cached = apcu_fetch($cacheKey, $success);
         if ($success) {
             $this->fastPath->register($method, $path, $cached);
+            $this->fastEngine->register($method, $path, $cached);
         } else {
             $data = $handler();
             $raw = RawResponseBuilder::json(200, $data);
             apcu_store($cacheKey, $raw, $ttl);
             $this->fastPath->register($method, $path, $raw);
+            $this->fastEngine->register($method, $path, $raw);
         }
         return $this;
     }
@@ -3364,6 +3183,7 @@ class HttpServer
 
         $raw = RawResponseBuilder::raw($status, $compressed, $headers);
         $this->fastPath->register($method, $path, $raw);
+        $this->fastEngine->register($method, $path, $raw);
         return $this;
     }
 }
