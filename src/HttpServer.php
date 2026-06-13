@@ -13,6 +13,7 @@ namespace Nexph\Server;
 use Nexph\Server\Server\Connection;
 use Nexph\Server\Server\BufferPool;
 use Nexph\Server\Server\NativeFastLoop;
+use Nexph\Server\Server\Native\NativeOpsFactory;
 use Nexph\Runtime\MemoryMonitor;
 use Nexph\Runtime\ResponseCache;
 use Nexph\Runtime\Adaptive\AdaptiveRuntime;
@@ -245,7 +246,7 @@ class HttpServer
         }
         $this->httpLatencyBuckets['+Inf'] = 0;
         $this->fastPath = new FastPathRegistry();
-        $this->fastEngine = new Server\FastPathEngine();
+        $this->fastEngine = new Server\FastPathEngine(NativeOpsFactory::create($config));
         Coroutine::setLoop($this->loop);
 
         // Adaptive runtime primitives
@@ -419,7 +420,8 @@ class HttpServer
             $this->fastEngine,
             $this->maxConnections,
             $this->maxAcceptPerTick,
-            $this->maxRequestsPerConnection
+            $this->maxRequestsPerConnection,
+            native: $this->fastEngine->native()
         ))->run();
     }
 

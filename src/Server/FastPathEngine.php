@@ -2,6 +2,9 @@
 
 namespace Nexph\Server\Server;
 
+use Nexph\Server\Server\Native\NativeOps;
+use Nexph\Server\Server\Native\PhpNativeOps;
+
 class FastPathEngine {
     private array $routes = [];
     private array $responses = [];
@@ -17,6 +20,10 @@ class FastPathEngine {
     private const MAX_CACHE = 4096;
     private const CACHE_RETAIN = 2048;
     private const MAX_HEADER_LEN = 2048;
+
+    public function __construct(private ?NativeOps $native = null) {
+        $this->native ??= new PhpNativeOps();
+    }
 
     public function register(string $method, string $path, string $rawResponse): void {
         $key = "$method $path";
@@ -51,6 +58,10 @@ class FastPathEngine {
         return $this->routes !== [];
     }
 
+    public function native(): NativeOps {
+        return $this->native;
+    }
+
     public function matchPrimary(string $buffer): int {
         if ($this->primaryStartLine === '') {
             return 0;
@@ -60,7 +71,7 @@ class FastPathEngine {
             return 0;
         }
 
-        $headerEnd = strpos($buffer, "\r\n\r\n", $this->primaryStartLineLength);
+        $headerEnd = $this->native->findHeaderEnd($buffer, $this->primaryStartLineLength);
         return $headerEnd === false ? 0 : $headerEnd + 4;
     }
 
@@ -85,7 +96,7 @@ class FastPathEngine {
     }
 
     public function matchExact(string $buffer): ?array {
-        $headerEnd = strpos($buffer, "\r\n\r\n");
+        $headerEnd = $this->native->findHeaderEnd($buffer);
         if ($headerEnd === false) {
             return null;
         }
@@ -94,7 +105,7 @@ class FastPathEngine {
         if ($this->primaryStartLine !== '' && strncmp($buffer, $this->primaryStartLine, $this->primaryStartLineLength) === 0) {
             return [
                 'key' => $this->primaryKey,
-                'keep_alive' => stripos($buffer, "Connection: close") === false,
+                'keep_alive' => !$this->native->hasConnectionClose($buffer),
                 'consumed' => $headerLen,
             ];
         }
@@ -106,7 +117,7 @@ class FastPathEngine {
             if (strncmp($buffer, $start, $this->startLineLengths[$start]) === 0) {
                 return [
                     'key' => $key,
-                    'keep_alive' => stripos($buffer, "Connection: close") === false,
+                    'keep_alive' => !$this->native->hasConnectionClose($buffer),
                     'consumed' => $headerLen,
                 ];
             }
@@ -145,7 +156,7 @@ class FastPathEngine {
         }
 
         $keepAlive = stripos($buffer, "Connection: keep-alive") !== false 
-                  || stripos($buffer, "Connection: close") === false;
+                  || !$this->native->hasConnectionClose($buffer);
 
         $result = [
             'key' => $key,

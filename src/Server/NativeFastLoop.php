@@ -2,6 +2,8 @@
 
 namespace Nexph\Server\Server;
 
+use Nexph\Server\Server\Native\NativeOps;
+use Nexph\Server\Server\Native\PhpNativeOps;
 use Nexph\Server\Socket\SocketDriverInterface;
 
 final class NativeFastLoop
@@ -29,7 +31,9 @@ final class NativeFastLoop
         private readonly int $maxAcceptPerTick,
         private readonly int $maxRequestsPerConnection,
         private readonly int $readChunkSize = 65536,
+        private ?NativeOps $native = null,
     ) {
+        $this->native ??= new PhpNativeOps();
         $this->primaryStartLine = $engine->primaryStartLine();
         $this->primaryStartLineLength = $engine->primaryStartLineLength();
         $this->primaryKeepAliveResponse = $engine->primaryKeepAliveResponse();
@@ -127,7 +131,7 @@ final class NativeFastLoop
             }
             $match = $this->engine->match($buffer);
             if ($match === null) {
-                if (strpos($buffer, "\r\n\r\n") === false) {
+                if ($this->native->findHeaderEnd($buffer) === false) {
                     return;
                 }
                 $this->write($socket, $id, self::NOT_FOUND, true);
@@ -145,7 +149,7 @@ final class NativeFastLoop
 
     private function writePrimary(\Socket $socket, int $id, string $buffer): bool
     {
-        $primary = strpos($buffer, "\r\n\r\n", $this->primaryStartLineLength);
+        $primary = $this->native->findHeaderEnd($buffer, $this->primaryStartLineLength);
         if ($primary === false) {
             return false;
         }
