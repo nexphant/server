@@ -19,7 +19,11 @@ class StaticFiles
 
     public function __construct(string $root, array $options = [])
     {
-        $this->root = rtrim($root, '/');
+        $realRoot = realpath($root);
+        if ($realRoot === false || !is_dir($realRoot)) {
+            throw new \InvalidArgumentException('Invalid static root');
+        }
+        $this->root = rtrim($realRoot, '/');
         $this->maxAge = $options['max_age'] ?? 86400;
         $this->etag = $options['etag'] ?? true;
         $this->mimeTypes = array_merge([
@@ -58,7 +62,6 @@ class StaticFiles
 
         $path = urldecode($request->path);
 
-        // Security: prevent directory traversal
         if (str_contains($path, '..') || str_contains($path, "\0")) {
             return;
         }
@@ -73,6 +76,11 @@ class StaticFiles
         if (!is_file($file) || !is_readable($file)) {
             return;
         }
+        $realFile = realpath($file);
+        if ($realFile === false || !$this->isInsideRoot($realFile)) {
+            return;
+        }
+        $file = $realFile;
 
         $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         $mime = $this->mimeTypes[$ext] ?? 'application/octet-stream';
@@ -119,7 +127,16 @@ class StaticFiles
         if (!is_file($file)) {
             return null;
         }
+        $realFile = realpath($file);
+        if ($realFile === false || !$this->isInsideRoot($realFile)) {
+            return null;
+        }
 
-        return yield from AsyncIO::readFile($file);
+        return yield from AsyncIO::readFile($realFile);
+    }
+
+    private function isInsideRoot(string $file): bool
+    {
+        return $file === $this->root || str_starts_with($file, $this->root . '/');
     }
 }

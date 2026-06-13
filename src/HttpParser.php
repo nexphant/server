@@ -54,6 +54,9 @@ class HttpParser
         }
 
         $uri = substr($line, $sp1 + 1, $sp2 - $sp1 - 1);
+        if ($uri === '' || str_contains($uri, "\0") || str_contains($uri, "\r") || str_contains($uri, "\n")) {
+            return null;
+        }
 
         // Parse path and query
         $qPos = strpos($uri, '?');
@@ -79,16 +82,27 @@ class HttpParser
             $colon = strpos($raw, ':', $pos);
             if ($colon !== false && $colon < $next) {
                 $key = strtolower(substr($raw, $pos, $colon - $pos));
+                if (!self::validHeaderName($key)) {
+                    return null;
+                }
                 $value = ltrim(substr($raw, $colon + 1, $next - $colon - 1));
+                if (str_contains($value, "\r") || str_contains($value, "\n")) {
+                    return null;
+                }
                 $headers[$key] = $value;
                 // Cache hot headers
                 if ($key === 'content-length') {
+                    if (!preg_match('/^\d+$/', $value)) {
+                        return null;
+                    }
                     $contentLength = (int) $value;
                 } elseif ($key === 'content-type') {
                     $contentType = $value;
                 } elseif ($key === 'cookie') {
                     $cookie = $value;
                 }
+            } elseif ($next > $pos) {
+                return null;
             }
             $pos = $next + 2;
         }
@@ -156,15 +170,30 @@ class HttpParser
         // Build with single string concat
         $head = "HTTP/1.1 {$status} {$statusText}\r\n";
         foreach ($headers as $key => $value) {
+            if (!self::validHeaderName((string) $key)) {
+                continue;
+            }
             if (is_array($value)) {
                 foreach ($value as $v) {
+                    $v = self::sanitizeHeaderValue((string) $v);
                     $head .= "{$key}: {$v}\r\n";
                 }
             } else {
+                $value = self::sanitizeHeaderValue((string) $value);
                 $head .= "{$key}: {$value}\r\n";
             }
         }
 
         return $head . "\r\n" . $body;
+    }
+
+    public static function validHeaderName(string $name): bool
+    {
+        return $name !== '' && preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`|~-]+$/', $name) === 1;
+    }
+
+    public static function sanitizeHeaderValue(string $value): string
+    {
+        return str_replace(["\r", "\n"], '', $value);
     }
 }

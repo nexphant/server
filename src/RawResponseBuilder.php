@@ -17,6 +17,10 @@ class RawResponseBuilder {
         $headers['Connection'] = $headers['Connection'] ?? 'keep-alive';
         $head = "HTTP/1.1 {$status} {$statusText}\r\n";
         foreach ($headers as $key => $value) {
+            if (!HttpParser::validHeaderName((string) $key)) {
+                continue;
+            }
+            $value = HttpParser::sanitizeHeaderValue((string) $value);
             $head .= "{$key}: {$value}\r\n";
         }
         return $head . "\r\n" . $body;

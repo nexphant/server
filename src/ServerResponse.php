@@ -22,33 +22,39 @@ class ServerResponse extends \Nexph\Response
 
     public function header(string $name, string $value): self
     {
-        $this->headers[$name] = $value;
+        if (!HttpParser::validHeaderName($name)) {
+            throw new \InvalidArgumentException('Invalid header name');
+        }
+        $this->headers[$name] = HttpParser::sanitizeHeaderValue($value);
         return $this;
     }
 
     public function headers(array $headers): self
     {
         foreach ($headers as $name => $value) {
-            $this->headers[$name] = $value;
+            $this->header((string) $name, (string) $value);
         }
         return $this;
     }
 
     public function cookie(string $name, string $value, array $options = []): self
     {
+        if (!preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`|~-]+$/', $name)) {
+            throw new \InvalidArgumentException('Invalid cookie name');
+        }
         $cookie = urlencode($name) . '=' . urlencode($value);
 
         if (isset($options['expires'])) {
             $cookie .= '; Expires=' . gmdate('D, d M Y H:i:s T', $options['expires']);
         }
         if (isset($options['max_age'])) {
-            $cookie .= '; Max-Age=' . $options['max_age'];
+            $cookie .= '; Max-Age=' . max(0, (int) $options['max_age']);
         }
         if (isset($options['path'])) {
-            $cookie .= '; Path=' . $options['path'];
+            $cookie .= '; Path=' . $this->sanitizeCookiePart((string) $options['path']);
         }
         if (isset($options['domain'])) {
-            $cookie .= '; Domain=' . $options['domain'];
+            $cookie .= '; Domain=' . $this->sanitizeCookiePart((string) $options['domain']);
         }
         if (!empty($options['secure'])) {
             $cookie .= '; Secure';
@@ -57,7 +63,10 @@ class ServerResponse extends \Nexph\Response
             $cookie .= '; HttpOnly';
         }
         if (isset($options['samesite'])) {
-            $cookie .= '; SameSite=' . $options['samesite'];
+            $sameSite = ucfirst(strtolower((string) $options['samesite']));
+            if (in_array($sameSite, ['Lax', 'Strict', 'None'], true)) {
+                $cookie .= '; SameSite=' . $sameSite;
+            }
         }
 
         $this->cookies[] = $cookie;
@@ -109,8 +118,13 @@ class ServerResponse extends \Nexph\Response
     public function redirect(string $url, int $status = 302): self
     {
         $this->status = $status;
-        $this->headers['Location'] = $url;
+        $this->header('Location', $url);
         return $this;
+    }
+
+    private function sanitizeCookiePart(string $value): string
+    {
+        return str_replace(["\r", "\n", ";"], '', $value);
     }
 
     public function notFound(string $message = 'Not Found'): self

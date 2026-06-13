@@ -33,7 +33,15 @@ class Cors
         $origin = $this->options['origin'];
         if (is_array($origin)) {
             $requestOrigin = $request->header('origin', '');
-            $origin = in_array($requestOrigin, $origin) ? $requestOrigin : $origin[0];
+            if (!in_array($requestOrigin, $origin, true)) {
+                return true;
+            }
+            $origin = $requestOrigin;
+        } elseif ($origin === '*' && $this->options['credentials']) {
+            $origin = $request->header('origin', '');
+            if ($origin === '') {
+                return true;
+            }
         }
 
         $response->header('Access-Control-Allow-Origin', $origin);
