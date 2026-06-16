@@ -1,8 +1,8 @@
 <?php
 
-namespace nexphant\Server\Server;
+namespace Nexphant\Server\Server;
 
-use nexphant\Server\EventLoop;
+use Nexphant\Server\EventLoop;
 
 class Server {
     private EventLoop $loop;
@@ -50,7 +50,7 @@ class Server {
     }
 
     public function close(): void {
-        if ($this->socket && \nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
+        if ($this->socket && \Nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             $this->loop->removeReader($this->socket);
             @fclose($this->socket);
         }

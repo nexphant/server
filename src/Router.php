@@ -8,7 +8,7 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
 class Route
 {
@@ -144,8 +144,8 @@ class Router
                     };
                     $result = ($route['handler'])($dummy, $dummyResp, []);
                     if (is_array($result)) {
-                        $json = \nexphant\Runtime\JsonSerializer::encode($result);
-                        $prebuilt = \nexphant\Server\RawResponse::json($json);
+                        $json = \Nexphant\Runtime\JsonSerializer::encode($result);
+                        $prebuilt = \Nexphant\Server\RawResponse::json($json);
                         $this->exactRoutes[$method][$path]['prebuilt'] = $prebuilt;
                         if (isset($this->fastRoutes[$method][$path])) {
                             $this->fastRoutes[$method][$path]['prebuilt'] = $prebuilt;

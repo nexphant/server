@@ -1,5 +1,5 @@
 <?php
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
 class Response extends ServerResponse {}
 

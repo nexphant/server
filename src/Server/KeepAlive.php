@@ -1,8 +1,8 @@
 <?php
 
-namespace nexphant\Server\Server;
+namespace Nexphant\Server\Server;
 
-use nexphant\Server\Server\Connection;
+use Nexphant\Server\Server\Connection;
 
 class KeepAlive {
     private int $timeout;

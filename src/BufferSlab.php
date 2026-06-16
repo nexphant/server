@@ -1,6 +1,6 @@
 <?php
 
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
 class BufferSlab implements Resettable, Cleanable {
     private string $data = '';

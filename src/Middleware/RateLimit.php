@@ -8,10 +8,10 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace nexphant\Server\Middleware;
+namespace Nexphant\Server\Middleware;
 
-use nexphant\Server\ServerRequest;
-use nexphant\Server\ServerResponse;
+use Nexphant\Server\ServerRequest;
+use Nexphant\Server\ServerResponse;
 
 class RateLimit
 {

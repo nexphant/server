@@ -1,4 +1,4 @@
-# nexphant Server
+# Nexphant Server
 
 HTTP server for nexphant framework.
 

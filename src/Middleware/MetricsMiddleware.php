@@ -1,8 +1,8 @@
 <?php
 
-namespace nexphant\Server\Middleware;
+namespace Nexphant\Server\Middleware;
 
-use nexphant\Runtime\Metrics\WorkerMetrics;
+use Nexphant\Runtime\Metrics\WorkerMetrics;
 
 class MetricsMiddleware
 {

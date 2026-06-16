@@ -1,7 +1,7 @@
 <?php
-namespace nexphant;
+namespace Nexphant;
 
-abstract class Request implements \nexphant\Server\Resettable, \nexphant\Server\Cleanable {
+abstract class Request implements \Nexphant\Server\Resettable, \Nexphant\Server\Cleanable {
     public string $method = '';
     public string $uri = '';
     public string $path = '';

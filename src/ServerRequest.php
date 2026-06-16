@@ -8,9 +8,9 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
-class ServerRequest extends \nexphant\Request
+class ServerRequest extends \Nexphant\Request
 {
     private ?Server\Connection $connection = null;
     private array $attributes = [];

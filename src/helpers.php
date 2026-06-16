@@ -10,9 +10,9 @@
  */
 
 if (!function_exists('app')) {
-    function app(): \nexphant\Server\Application
+    function app(): \Nexphant\Server\Application
     {
-        return \nexphant\Server\Application::getInstance();
+        return \Nexphant\Server\Application::getInstance();
     }
 }
 
@@ -59,8 +59,8 @@ if (!function_exists('listen')) {
 }
 
 if (!function_exists('view')) {
-    function view(string $view, array $data = []): \nexphant\View\ViewResponse
+    function view(string $view, array $data = []): \Nexphant\View\ViewResponse
     {
-        return \nexphant\View\view($view, $data);
+        return \Nexphant\View\view($view, $data);
     }
 }

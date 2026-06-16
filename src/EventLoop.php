@@ -8,7 +8,7 @@
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
 class EventLoop
 {
@@ -31,13 +31,13 @@ class EventLoop
     private float $now;
     private int $tickCount = 0;
     private float $lastTickDurationMs = 0.0;
-    private ?\nexphant\Runtime\EventLoop\EventLoopInterface $backend = null;
+    private ?\Nexphant\Runtime\EventLoop\EventLoopInterface $backend = null;
     private ?int $deferredTimerId = null;
     private int $maxReadCallbacksPerTick = 64;
     private int $maxWriteCallbacksPerTick = 64;
     private int $maxDeferredPerTick = 256;
 
-    public function __construct(?\nexphant\Runtime\EventLoop\EventLoopInterface $backend = null)
+    public function __construct(?\Nexphant\Runtime\EventLoop\EventLoopInterface $backend = null)
     {
         $this->backend = $backend;
         $this->now = microtime(true);

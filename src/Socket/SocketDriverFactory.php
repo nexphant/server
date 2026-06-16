@@ -1,14 +1,14 @@
 <?php
 
-namespace nexphant\Server\Socket;
+namespace Nexphant\Server\Socket;
 
-use nexphant\Support\Extension\ExtensionDetector;
+use Nexphant\Support\Extension\ExtensionDetector;
 
 class SocketDriverFactory
 {
     public static function create(?string $preferred = null, array $config = []): SocketDriverInterface
     {
-        $override = getenv('nexphant_SOCKET') ?: $preferred;
+        $override = getenv('NEXPHANT_SOCKET') ?: $preferred;
         
         if (($override === 'native' || $override === 'auto') && ExtensionDetector::has('sockets')) {
             return new NativeSocketDriver($config);

@@ -1,6 +1,6 @@
 <?php
 
-namespace nexphant\Server\Server;
+namespace Nexphant\Server\Server;
 
 class NativeConnection {
     private \Socket $socket;

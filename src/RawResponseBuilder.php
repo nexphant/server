@@ -1,6 +1,6 @@
 <?php
 
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
 class RawResponseBuilder {
     public static function build(int $status, array $headers, string $body): string {

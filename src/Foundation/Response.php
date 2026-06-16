@@ -1,7 +1,7 @@
 <?php
-namespace nexphant;
+namespace Nexphant;
 
-abstract class Response implements \nexphant\Server\Resettable, \nexphant\Server\Cleanable {
+abstract class Response implements \Nexphant\Server\Resettable, \Nexphant\Server\Cleanable {
     protected int $status = 200;
     protected array $headers = [];
     protected string $body = '';

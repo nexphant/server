@@ -1,6 +1,6 @@
 <?php
 
-namespace nexphant\Server\Attributes;
+namespace Nexphant\Server\Attributes;
 
 #[\Attribute(\Attribute::TARGET_METHOD | \Attribute::IS_REPEATABLE)]
 class Get extends Route

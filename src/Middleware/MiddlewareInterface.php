@@ -1,7 +1,7 @@
 <?php
-namespace nexphant\Server\Middleware;
+namespace Nexphant\Server\Middleware;
 
-use nexphant\Server\ServerRequest;
+use Nexphant\Server\ServerRequest;
 
 interface MiddlewareInterface
 {

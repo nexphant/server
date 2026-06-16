@@ -1,9 +1,9 @@
 <?php
 
-namespace nexphant\Server\Server;
+namespace Nexphant\Server\Server;
 
-use nexphant\Server\Server\Connection;
-use nexphant\Server\EventLoop;
+use Nexphant\Server\Server\Connection;
+use Nexphant\Server\EventLoop;
 
 class Writer {
     private EventLoop $loop;
@@ -20,7 +20,7 @@ class Writer {
 
     public function flushPending(Connection $conn, bool $closeWhenDone, callable $onClose): void {
         $socket = $conn->getSocket();
-        if (!$socket || !\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
+        if (!$socket || !\Nexphant\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
             return;
         }
 

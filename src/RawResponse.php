@@ -1,6 +1,6 @@
 <?php
 
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
 class RawResponse {
     public function __construct(public readonly string $http) {}

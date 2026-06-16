@@ -1,9 +1,9 @@
 <?php
 
-namespace nexphant\Server\Server;
+namespace Nexphant\Server\Server;
 
-use nexphant\Server\Server\Native\NativeOps;
-use nexphant\Server\Server\Native\PhpNativeOps;
+use Nexphant\Server\Server\Native\NativeOps;
+use Nexphant\Server\Server\Native\PhpNativeOps;
 
 class FastPathEngine {
     private array $routes = [];

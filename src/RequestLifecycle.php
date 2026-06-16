@@ -1,9 +1,9 @@
 <?php
 
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
-use nexphant\Lifecycle\Lifecycle;
-use nexphant\Lifecycle\RequestOwner;
+use Nexphant\Lifecycle\Lifecycle;
+use Nexphant\Lifecycle\RequestOwner;
 
 class RequestLifecycle
 {

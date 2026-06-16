@@ -1,8 +1,8 @@
 <?php
 
-namespace nexphant\Server;
+namespace Nexphant\Server;
 
-use nexphant\Application as FrameworkApplication;
+use Nexphant\Application as FrameworkApplication;
 
 class Application extends FrameworkApplication
 {

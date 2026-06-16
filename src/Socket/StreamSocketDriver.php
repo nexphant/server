@@ -1,6 +1,6 @@
 <?php
 
-namespace nexphant\Server\Socket;
+namespace Nexphant\Server\Socket;
 
 class StreamSocketDriver implements SocketDriverInterface
 {
