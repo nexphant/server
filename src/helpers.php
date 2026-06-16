@@ -1,7 +1,7 @@
 <?php
 
 /**
- * This file is part of the Nexph Framework.
+ * This file is part of the nexphant Framework.
  *
  * (c) nexphant <https://github.com/nexphant>
  *
@@ -10,9 +10,9 @@
  */
 
 if (!function_exists('app')) {
-    function app(): \Nexph\Server\Application
+    function app(): \nexphant\Server\Application
     {
-        return \Nexph\Server\Application::getInstance();
+        return \nexphant\Server\Application::getInstance();
     }
 }
 
@@ -59,8 +59,8 @@ if (!function_exists('listen')) {
 }
 
 if (!function_exists('view')) {
-    function view(string $view, array $data = []): \Nexph\View\ViewResponse
+    function view(string $view, array $data = []): \nexphant\View\ViewResponse
     {
-        return \Nexph\View\view($view, $data);
+        return \nexphant\View\view($view, $data);
     }
 }

@@ -1,12 +1,12 @@
 {
-    "name": "nexph/server",
-    "description": "HTTP server for Nexph framework",
+    "name": "nexphant/server",
+    "description": "HTTP server for nexphant framework",
     "type": "library",
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Nexph\\Server\\": "src/",
-            "Nexph\\": "src/Foundation/"
+            "nexphant\\Server\\": "src/",
+            "nexphant\\": "src/Foundation/"
         },
         "files": ["src/helpers.php"]
     },
@@ -14,14 +14,14 @@
         "php": ">=8.1",
         "ext-pcntl": "*",
         "ext-posix": "*",
-        "nexph/core": "^0.0",
-        "nexph/runtime": "^0.0",
-        "nexph/support": "^0.0"
+        "nexphant/core": "^0.0",
+        "nexphant/runtime": "^0.0",
+        "nexphant/support": "^0.0"
     },
     "suggest": {
         "ext-zlib": "For compression middleware",
         "ext-redis": "For Redis session storage",
-        "nexph/database": "For database integration"
+        "nexphant/database": "For database integration"
     }
 }
 

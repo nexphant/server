@@ -1,16 +1,16 @@
 <?php
 
 /**
- * This file is part of the Nexph Framework.
+ * This file is part of the nexphant Framework.
  *
  * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace Nexph\Server;
+namespace nexphant\Server;
 
-use Nexph\Database\DB;
+use nexphant\Database\DB;
 
 class AsyncIO
 {
@@ -156,7 +156,7 @@ class AsyncDatabase
         self::$loop = $loop;
         if (self::$config !== []) {
             $driver = DB::connection(self::$connection);
-            if ($driver instanceof \Nexph\Database\Drivers\AsyncDriverInterface) {
+            if ($driver instanceof \nexphant\Database\Drivers\AsyncDriverInterface) {
                 $driver->attachLoop($loop);
             }
         }
@@ -168,7 +168,7 @@ class AsyncDatabase
         self::$config = $config;
         self::$connection = (string) ($config['connection'] ?? 'default');
         $driver = DB::connect($config, self::$connection);
-        if (self::$loop && $driver instanceof \Nexph\Database\Drivers\AsyncDriverInterface) {
+        if (self::$loop && $driver instanceof \nexphant\Database\Drivers\AsyncDriverInterface) {
             $driver->attachLoop(self::$loop);
         }
     }
@@ -184,7 +184,7 @@ class AsyncDatabase
 
         try {
             $driver = DB::connection(self::$connection);
-            if ($driver instanceof \Nexph\Database\Drivers\AsyncDriverInterface) {
+            if ($driver instanceof \nexphant\Database\Drivers\AsyncDriverInterface) {
                 $query = self::returnsRows($sql)
                     ? $driver->queryAsync($sql, $params)
                     : $driver->executeAsync($sql, $params);
@@ -216,11 +216,11 @@ class AsyncDatabase
 
         try {
             $driver = DB::connection(self::$connection);
-            if ($driver instanceof \Nexph\Database\Drivers\AsyncDriverInterface) {
+            if ($driver instanceof \nexphant\Database\Drivers\AsyncDriverInterface) {
                 $query = $driver->executeAsync($sql, array_values($data));
                 $query->rewind();
                 $query->current()->then(function ($result) use ($deferred) {
-                    if ($result instanceof \Nexph\Database\Drivers\DriverResult) {
+                    if ($result instanceof \nexphant\Database\Drivers\DriverResult) {
                         $deferred->resolve($result->insertId);
                         return;
                     }
@@ -299,7 +299,7 @@ class AsyncDatabase
 
     private static function resolveQuery(Deferred $deferred, string $sql, mixed $result): void
     {
-        if ($result instanceof \Nexph\Database\Drivers\DriverResult) {
+        if ($result instanceof \nexphant\Database\Drivers\DriverResult) {
             $deferred->resolve(self::returnsRows($sql) ? $result->rows : $result->affectedRows);
             return;
         }

@@ -1,11 +1,11 @@
-# Nexph Server
+# nexphant Server
 
-HTTP server for Nexph framework.
+HTTP server for nexphant framework.
 
 ## Installation
 
 ```bash
-composer require nexph/server
+composer require nexphant/server
 ```
 
 ## License

@@ -1,16 +1,16 @@
 <?php
 
 /**
- * This file is part of the Nexph Framework.
+ * This file is part of the nexphant Framework.
  *
  * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace Nexph\Server\Server;
+namespace nexphant\Server\Server;
 
-use Nexph\Server\BufferSlab;
+use nexphant\Server\BufferSlab;
 
 class Connection
 {
@@ -56,12 +56,12 @@ class Connection
         }
 
         // Track socket resource (skip if not object in PHP 8.0)
-        if (class_exists('\Nexph\Core\Resource\ResourceRegistry') && class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
+        if (class_exists('\nexphant\Core\Resource\ResourceRegistry') && class_exists('\nexphant\Runtime\Runtime') && \nexphant\Runtime\Runtime::available()) {
             if (is_object($socket)) {
-                \Nexph\Core\Resource\ResourceRegistry::instance()->track(
+                \nexphant\Core\Resource\ResourceRegistry::instance()->track(
                     $socket,
                     'socket',
-                    \Nexph\Runtime\Runtime::context()->ownerId()
+                    \nexphant\Runtime\Runtime::context()->ownerId()
                 );
             }
         }
@@ -106,7 +106,7 @@ class Connection
 
     public function read(): ?string
     {
-        if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
+        if (!\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             return null;
         }
 
@@ -130,7 +130,7 @@ class Connection
         $data = @fread($this->socket, 65536);
 
         if ($data === false || $data === '') {
-            if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket) || feof($this->socket)) {
+            if (!\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->socket) || feof($this->socket)) {
                 return null;
             }
             return '';
@@ -157,7 +157,7 @@ class Connection
 
     public function write(string $data, int $maxBufferSize = 0): int
     {
-        if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
+        if (!\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             return -1;
         }
 
@@ -190,7 +190,7 @@ class Connection
             return 0;
         }
 
-        if (!\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
+        if (!\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             $this->writeBuffer->reset();
             return -1;
         }
@@ -231,7 +231,7 @@ class Connection
 
     public function close(): void
     {
-        if (\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
+        if (\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->socket)) {
             if ($this->socket instanceof \Socket) {
                 @socket_close($this->socket);
             } else {
@@ -251,7 +251,7 @@ class Connection
 
     public function isAlive(): bool
     {
-        return \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->socket);
+        return \nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->socket);
     }
 
     public function getLastActivity(): float

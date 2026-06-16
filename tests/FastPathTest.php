@@ -1,10 +1,10 @@
 <?php
 
-namespace Nexph\Tests\Server;
+namespace nexphant\Tests\Server;
 
-use Nexph\Server\FastPathRegistry;
-use Nexph\Server\RawResponseBuilder;
-use Nexph\Server\BufferSlab;
+use nexphant\Server\FastPathRegistry;
+use nexphant\Server\RawResponseBuilder;
+use nexphant\Server\BufferSlab;
 use PHPUnit\Framework\TestCase;
 
 class FastPathTest extends TestCase {

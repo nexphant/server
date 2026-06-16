@@ -1,8 +1,8 @@
 <?php
-namespace Nexph\Server\Middleware;
+namespace nexphant\Server\Middleware;
 
-use Nexph\Server\ServerRequest;
-use Nexph\Server\ServerResponse;
+use nexphant\Server\ServerRequest;
+use nexphant\Server\ServerResponse;
 
 interface Middleware
 {

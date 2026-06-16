@@ -1,6 +1,6 @@
 <?php
 
-namespace Nexph\Server;
+namespace nexphant\Server;
 
 class FastPathRegistry {
     private array $map = [];

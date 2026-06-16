@@ -1,23 +1,23 @@
 <?php
 
 /**
- * This file is part of the Nexph Framework.
+ * This file is part of the nexphant Framework.
  *
  * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace Nexph\Server;
+namespace nexphant\Server;
 
-use Nexph\Server\Server\Connection;
-use Nexph\Server\Server\BufferPool;
-use Nexph\Server\Server\NativeFastLoop;
-use Nexph\Server\Server\Native\NativeOpsFactory;
-use Nexph\Runtime\MemoryMonitor;
-use Nexph\Runtime\ResponseCache;
-use Nexph\Runtime\Adaptive\AdaptiveRuntime;
-use Nexph\Runtime\Adaptive\SharedWorkerTable;
+use nexphant\Server\Server\Connection;
+use nexphant\Server\Server\BufferPool;
+use nexphant\Server\Server\NativeFastLoop;
+use nexphant\Server\Server\Native\NativeOpsFactory;
+use nexphant\Runtime\MemoryMonitor;
+use nexphant\Runtime\ResponseCache;
+use nexphant\Runtime\Adaptive\AdaptiveRuntime;
+use nexphant\Runtime\Adaptive\SharedWorkerTable;
 
 class HttpServer
 {
@@ -36,10 +36,10 @@ class HttpServer
     private BufferPool $bufferPool;
     private FastPathRegistry $fastPath;
     private Server\FastPathEngine $fastEngine;
-    private ?\Nexph\Server\Socket\SocketDriverInterface $socketDriver = null;
+    private ?\nexphant\Server\Socket\SocketDriverInterface $socketDriver = null;
     private bool $quiet = false;
     private ?AdaptiveRuntime $adaptive = null;
-    private ?\Nexph\Lifecycle\Owner $workerOwner = null;
+    private ?\nexphant\Lifecycle\Owner $workerOwner = null;
 
     // Config
     private string $host = '0.0.0.0';
@@ -181,7 +181,7 @@ class HttpServer
         $this->backlog = $config['backlog'] ?? 4096;
         $this->workerId = $config['worker_id'] ?? 1;
         $this->workerCount = $config['worker_count'] ?? 1;
-        $this->statsDir = $config['stats_dir'] ?? (sys_get_temp_dir() . '/nexph-http-' . $this->port);
+        $this->statsDir = $config['stats_dir'] ?? (sys_get_temp_dir() . '/nexphant-http-' . $this->port);
         $this->webSocketBusFile = $this->statsDir . '/websocket-bus.log';
         $this->sseBusFile = $this->statsDir . '/sse-bus.log';
         $busType = $config['websocket_bus'] ?? 'file';
@@ -205,7 +205,7 @@ class HttpServer
         $this->histogramEnabled = $this->runtimeSafetyEnabled && (bool) ($config['histogram'] ?? true);
         $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 1 : 100)));
 
-        $backend = \Nexph\Runtime\EventLoop\EventLoopFactory::create($config['event_loop'] ?? 'auto');
+        $backend = \nexphant\Runtime\EventLoop\EventLoopFactory::create($config['event_loop'] ?? 'auto');
         // $backendName = (new \ReflectionClass($backend))->getShortName();
         // if (!($config['quiet'] ?? false) && ($config['worker_id'] ?? 1) === 1) {
         //     error_log("Event Loop: $backendName");
@@ -312,7 +312,7 @@ class HttpServer
         $this->config = array_merge($this->config, $config);
         $this->host = $this->config['host'] ?? $this->host;
         $this->port = $this->config['port'] ?? $this->port;
-        $this->statsDir = $this->config['stats_dir'] ?? (sys_get_temp_dir() . '/nexph-http-' . $this->port);
+        $this->statsDir = $this->config['stats_dir'] ?? (sys_get_temp_dir() . '/nexphant-http-' . $this->port);
         $this->webSocketBusFile = $this->statsDir . '/websocket-bus.log';
         $this->sseBusFile = $this->statsDir . '/sse-bus.log';
         $this->maxConnections = (int) ($this->config['max_connections'] ?? $this->maxConnections);
@@ -354,8 +354,8 @@ class HttpServer
     {
         ServerTUI::setEnabled(!$this->quiet);
         $this->startTime = microtime(true);
-        $this->workerOwner ??= class_exists('\Nexph\Lifecycle\Lifecycle') && $this->runtimeSafetyEnabled
-            ? \Nexph\Lifecycle\Lifecycle::worker()
+        $this->workerOwner ??= class_exists('\nexphant\Lifecycle\Lifecycle') && $this->runtimeSafetyEnabled
+            ? \nexphant\Lifecycle\Lifecycle::worker()
             : null;
         if ($this->shouldUseDirectFastLoop()) {
             $this->createServer(false);
@@ -377,7 +377,7 @@ class HttpServer
 
     private function createServer(bool $attachReader = true): void
     {
-        $this->socketDriver = \Nexph\Server\Socket\SocketDriverFactory::create(
+        $this->socketDriver = \nexphant\Server\Socket\SocketDriverFactory::create(
             $this->config['socket_driver'] ?? 'auto',
             ['reuse_port' => $this->config['reuse_port'] ?? (($this->config['profile'] ?? '') === 'low_latency' ? false : true)]
         );
@@ -506,7 +506,7 @@ class HttpServer
         if (!empty($this->webSocketHandlers) && $this->webSocketBusType === 'redis' && !$this->webSocketRedisBus) {
             $this->webSocketRedisBus = new WebSocketRedisBus(
                 (string) ($this->config['websocket_redis_url'] ?? 'redis://127.0.0.1:6379/0'),
-                (string) ($this->config['websocket_redis_channel'] ?? 'nexph:websocket')
+                (string) ($this->config['websocket_redis_channel'] ?? 'nexphant:websocket')
             );
         }
         if ($this->webSocketRedisBus) {
@@ -518,7 +518,7 @@ class HttpServer
         if (!empty($this->webSocketHandlers) && $this->sseBusType === 'redis' && !$this->sseRedisBus) {
             $this->sseRedisBus = new WebSocketRedisBus(
                 (string) ($this->config['sse_redis_url'] ?? $this->config['websocket_redis_url'] ?? 'redis://127.0.0.1:6379/0'),
-                (string) ($this->config['sse_redis_channel'] ?? 'nexph:sse')
+                (string) ($this->config['sse_redis_channel'] ?? 'nexphant:sse')
             );
         }
         if ($this->sseRedisBus) {
@@ -782,7 +782,7 @@ class HttpServer
         }
         $response = $this->acquireResponse($requestContext);
         $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
-        if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+        if ($lifecycleOwner instanceof \nexphant\Lifecycle\Owner) {
             $lifecycleOwner->own($response);
         }
         if ($cacheKey !== null) {
@@ -1679,7 +1679,7 @@ class HttpServer
             }
         } catch (\Throwable $e) {
             $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
-            if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+            if ($lifecycleOwner instanceof \nexphant\Lifecycle\Owner) {
                 $lifecycleOwner->cancel();
             }
             $this->handleError($e, $response);
@@ -1733,7 +1733,7 @@ class HttpServer
             $this->sendResponse($conn, $response);
         } catch (\Throwable $e) {
             $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
-            if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+            if ($lifecycleOwner instanceof \nexphant\Lifecycle\Owner) {
                 $lifecycleOwner->cancel();
             }
             throw $e;
@@ -1749,7 +1749,7 @@ class HttpServer
             }
         } catch (\Throwable $e) {
             $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
-            if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+            if ($lifecycleOwner instanceof \nexphant\Lifecycle\Owner) {
                 $lifecycleOwner->cancel();
             }
             $this->handleError($e, $response);
@@ -1785,20 +1785,20 @@ class HttpServer
 
         // Close lifecycle owner first (cancel + close children + release resources)
         $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
-        if ($lifecycleOwner instanceof \Nexph\Lifecycle\Owner) {
+        if ($lifecycleOwner instanceof \nexphant\Lifecycle\Owner) {
             $lifecycleOwner->cancel();
             $lifecycleOwner->close();
         }
 
         // Close request owner
-        if (class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
+        if (class_exists('\nexphant\Runtime\Runtime') && \nexphant\Runtime\Runtime::available()) {
             $ownerId = $request->getAttribute('__owner_id');
             if ($ownerId) {
                 // Finish in-flight tracking
-                if (class_exists('\Nexph\Core\Drain\DrainController')) {
-                    \Nexph\Core\Drain\DrainController::instance()->finishInFlight($ownerId);
+                if (class_exists('\nexphant\Core\Drain\DrainController')) {
+                    \nexphant\Core\Drain\DrainController::instance()->finishInFlight($ownerId);
                 }
-                \Nexph\Runtime\Runtime::owners()->close($ownerId, 'request_completed');
+                \nexphant\Runtime\Runtime::owners()->close($ownerId, 'request_completed');
             }
         }
 
@@ -1941,29 +1941,29 @@ class HttpServer
         /** @var ServerRequest $request */
         $request = $this->requestPool->acquire('http', 'conn:' . $conn->getId());
         $request->hydrate($parsed, $conn);
-        if ($this->runtimeSafetyEnabled && class_exists('\Nexph\Lifecycle\Lifecycle')) {
-            $lifecycleOwner = \Nexph\Lifecycle\Lifecycle::request();
+        if ($this->runtimeSafetyEnabled && class_exists('\nexphant\Lifecycle\Lifecycle')) {
+            $lifecycleOwner = \nexphant\Lifecycle\Lifecycle::request();
             $lifecycleOwner->own($request);
             $request->setAttribute('__lifecycle_owner', $lifecycleOwner);
         }
 
         // Track request with owner type 'request'
-        if (class_exists('\Nexph\Runtime\Runtime') && \Nexph\Runtime\Runtime::available()) {
-            $owner = \Nexph\Runtime\Runtime::owners()->open(
-                \Nexph\Core\Ownership\OwnerType::REQUEST,
+        if (class_exists('\nexphant\Runtime\Runtime') && \nexphant\Runtime\Runtime::available()) {
+            $owner = \nexphant\Runtime\Runtime::owners()->open(
+                \nexphant\Core\Ownership\OwnerType::REQUEST,
                 null,
                 ['method' => $parsed['method'] ?? 'GET', 'path' => $parsed['path'] ?? '/']
             );
             $request->setAttribute('__owner_id', $owner->id()->toString());
 
             // Track in-flight
-            if (class_exists('\Nexph\Core\Drain\DrainController')) {
-                \Nexph\Core\Drain\DrainController::instance()->trackInFlight($owner->id());
+            if (class_exists('\nexphant\Core\Drain\DrainController')) {
+                \nexphant\Core\Drain\DrainController::instance()->trackInFlight($owner->id());
             }
 
             // Set context for request
             $traceId = bin2hex(random_bytes(16));
-            \Nexph\Runtime\Runtime::withContext([
+            \nexphant\Runtime\Runtime::withContext([
                 'trace_id' => $traceId,
                 'request_id' => $request->getAttribute('__id', ''),
                 'owner_id' => $owner->id()->toString(),
@@ -1987,7 +1987,7 @@ class HttpServer
     private function flushPending(Connection $conn, bool $closeWhenDone): void
     {
         $socket = $conn->getSocket();
-        if (!$socket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
+        if (!$socket || !\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
             return;
         }
 
@@ -2019,7 +2019,7 @@ class HttpServer
         $wasWebSocket = $conn->isWebSocket();
         $webSocketPath = $conn->getWebSocketPath();
 
-        if ($socket && \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
+        if ($socket && \nexphant\Server\Socket\SocketDriverFactory::isValidSocket($socket)) {
             $this->loop->removeReader($socket);
             $this->loop->removeWriter($socket);
         }
@@ -2148,7 +2148,7 @@ class HttpServer
 
     private function pauseAccepting(): void
     {
-        if (!$this->accepting || !$this->serverSocket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
+        if (!$this->accepting || !$this->serverSocket || !\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             $this->accepting = false;
             return;
         }
@@ -2159,7 +2159,7 @@ class HttpServer
 
     private function resumeAccepting(): void
     {
-        if ($this->accepting || $this->draining || !$this->serverSocket || !\Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
+        if ($this->accepting || $this->draining || !$this->serverSocket || !\nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             return;
         }
 
@@ -2180,8 +2180,8 @@ class HttpServer
         $this->pauseAccepting();
 
         // Integrate with DrainController
-        if (class_exists('\Nexph\Core\Drain\DrainController')) {
-            \Nexph\Core\Drain\DrainController::instance()->stopAccepting();
+        if (class_exists('\nexphant\Core\Drain\DrainController')) {
+            \nexphant\Core\Drain\DrainController::instance()->stopAccepting();
         }
 
         foreach ($this->connections as $conn) {
@@ -2241,7 +2241,7 @@ class HttpServer
         $this->publishStats();
 
         // Close server socket
-        if ($this->serverSocket && \Nexph\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
+        if ($this->serverSocket && \nexphant\Server\Socket\SocketDriverFactory::isValidSocket($this->serverSocket)) {
             $this->loop->removeReader($this->serverSocket);
             if ($this->serverSocket instanceof \Socket) {
                 @socket_close($this->serverSocket);
@@ -2281,245 +2281,245 @@ class HttpServer
     {
         $stats = $this->getStats();
         $lines = [
-            '# HELP nexph_http_requests_total Total HTTP requests.',
-            '# TYPE nexph_http_requests_total counter',
-            'nexph_http_requests_total ' . (int) $stats['total_requests'],
-            '# HELP nexph_http_active_requests Active HTTP requests.',
-            '# TYPE nexph_http_active_requests gauge',
-            'nexph_http_active_requests ' . (int) ($stats['active_requests'] ?? 0),
-            '# HELP nexph_http_connections_total Total accepted connections.',
-            '# TYPE nexph_http_connections_total counter',
-            'nexph_http_connections_total ' . (int) $stats['total_connections'],
-            '# HELP nexph_http_active_connections Active open connections.',
-            '# TYPE nexph_http_active_connections gauge',
-            'nexph_http_active_connections ' . (int) $stats['active_connections'],
-            '# HELP nexph_websockets_total Total accepted WebSocket upgrades.',
-            '# TYPE nexph_websockets_total counter',
-            'nexph_websockets_total ' . (int) ($stats['total_websockets'] ?? 0),
-            '# HELP nexph_active_websockets Active WebSocket connections.',
-            '# TYPE nexph_active_websockets gauge',
-            'nexph_active_websockets ' . (int) ($stats['active_websockets'] ?? 0),
-            '# HELP nexph_sse_connections_total Total accepted SSE streams.',
-            '# TYPE nexph_sse_connections_total counter',
-            'nexph_sse_connections_total ' . (int) ($stats['total_sse_connections'] ?? 0),
-            '# HELP nexph_sse_active_connections Active SSE streams.',
-            '# TYPE nexph_sse_active_connections gauge',
-            'nexph_sse_active_connections ' . (int) ($stats['active_sse_connections'] ?? 0),
-            '# HELP nexph_sse_events_sent_total SSE events sent.',
-            '# TYPE nexph_sse_events_sent_total counter',
-            'nexph_sse_events_sent_total ' . (int) ($stats['sse']['events_sent'] ?? 0),
-            '# HELP nexph_sse_heartbeats_total SSE heartbeat comments sent.',
-            '# TYPE nexph_sse_heartbeats_total counter',
-            'nexph_sse_heartbeats_total ' . (int) ($stats['sse']['heartbeats_sent'] ?? 0),
-            '# HELP nexph_sse_backpressure_closes_total SSE connections closed by backpressure.',
-            '# TYPE nexph_sse_backpressure_closes_total counter',
-            'nexph_sse_backpressure_closes_total ' . (int) ($stats['sse']['backpressure_closes'] ?? 0),
-            '# HELP nexph_sse_auth_failures_total SSE auth failures.',
-            '# TYPE nexph_sse_auth_failures_total counter',
-            'nexph_sse_auth_failures_total ' . (int) ($stats['sse']['auth_failures'] ?? 0),
-            '# HELP nexph_sse_replay_requests_total SSE resume requests.',
-            '# TYPE nexph_sse_replay_requests_total counter',
-            'nexph_sse_replay_requests_total ' . (int) ($stats['sse']['replay_requests'] ?? 0),
-            '# HELP nexph_sse_replayed_events_total SSE events replayed on resume.',
-            '# TYPE nexph_sse_replayed_events_total counter',
-            'nexph_sse_replayed_events_total ' . (int) ($stats['sse']['replayed_events'] ?? 0),
-            '# HELP nexph_sse_replay_expired_total SSE resume requests with missing event id.',
-            '# TYPE nexph_sse_replay_expired_total counter',
-            'nexph_sse_replay_expired_total ' . (int) ($stats['sse']['replay_expired'] ?? 0),
-            '# HELP nexph_sse_replay_buffer_events SSE replay buffer events.',
-            '# TYPE nexph_sse_replay_buffer_events gauge',
-            'nexph_sse_replay_buffer_events ' . (int) ($stats['sse']['replay_buffer_events'] ?? 0),
-            '# HELP nexph_sse_broadcasts_total SSE broadcast calls.',
-            '# TYPE nexph_sse_broadcasts_total counter',
-            'nexph_sse_broadcasts_total ' . (int) ($stats['sse']['broadcasts'] ?? 0),
-            '# HELP nexph_sse_local_deliveries_total SSE local event deliveries.',
-            '# TYPE nexph_sse_local_deliveries_total counter',
-            'nexph_sse_local_deliveries_total ' . (int) ($stats['sse']['local_deliveries'] ?? 0),
-            '# HELP nexph_sse_bus_published_total SSE events published to cross-worker bus.',
-            '# TYPE nexph_sse_bus_published_total counter',
-            'nexph_sse_bus_published_total ' . (int) ($stats['sse']['bus_published'] ?? 0),
-            '# HELP nexph_sse_bus_deliveries_total SSE deliveries from cross-worker bus.',
-            '# TYPE nexph_sse_bus_deliveries_total counter',
-            'nexph_sse_bus_deliveries_total ' . (int) ($stats['sse']['bus_deliveries'] ?? 0),
-            '# HELP nexph_sse_bus_bytes SSE cross-worker bus file size.',
-            '# TYPE nexph_sse_bus_bytes gauge',
-            'nexph_sse_bus_bytes ' . (int) ($stats['sse']['bus_file_size'] ?? 0),
-            '# HELP nexph_sse_bus_seen_events SSE bus events remembered for dedupe.',
-            '# TYPE nexph_sse_bus_seen_events gauge',
-            'nexph_sse_bus_seen_events ' . (int) ($stats['sse']['bus_seen_events'] ?? 0),
-            '# HELP nexph_websocket_pings_total WebSocket pings sent.',
-            '# TYPE nexph_websocket_pings_total counter',
-            'nexph_websocket_pings_total ' . (int) ($stats['websocket_heartbeat']['pings_sent'] ?? 0),
-            '# HELP nexph_websocket_pongs_total WebSocket pongs received.',
-            '# TYPE nexph_websocket_pongs_total counter',
-            'nexph_websocket_pongs_total ' . (int) ($stats['websocket_heartbeat']['pongs_received'] ?? 0),
-            '# HELP nexph_websocket_heartbeat_timeouts_total WebSocket heartbeat timeouts.',
-            '# TYPE nexph_websocket_heartbeat_timeouts_total counter',
-            'nexph_websocket_heartbeat_timeouts_total ' . (int) ($stats['websocket_heartbeat']['heartbeat_timeouts'] ?? 0),
-            '# HELP nexph_websocket_idle_closes_total WebSocket idle closes.',
-            '# TYPE nexph_websocket_idle_closes_total counter',
-            'nexph_websocket_idle_closes_total ' . (int) ($stats['websocket_heartbeat']['idle_closes'] ?? 0),
-            '# HELP nexph_websocket_bus_bytes WebSocket cross-worker bus file size.',
-            '# TYPE nexph_websocket_bus_bytes gauge',
-            'nexph_websocket_bus_bytes ' . (int) ($stats['websocket_bus']['file_size'] ?? 0),
-            '# HELP nexph_websocket_broadcasts_total WebSocket broadcast calls.',
-            '# TYPE nexph_websocket_broadcasts_total counter',
-            'nexph_websocket_broadcasts_total ' . (int) ($stats['websocket_broadcast']['broadcasts'] ?? 0),
-            '# HELP nexph_websocket_broadcast_deliveries_total WebSocket broadcast frame deliveries.',
-            '# TYPE nexph_websocket_broadcast_deliveries_total counter',
-            'nexph_websocket_broadcast_deliveries_total ' . (int) ($stats['websocket_broadcast']['deliveries'] ?? 0),
-            '# HELP nexph_websocket_broadcast_batches_total WebSocket broadcast delivery batches.',
-            '# TYPE nexph_websocket_broadcast_batches_total counter',
-            'nexph_websocket_broadcast_batches_total ' . (int) ($stats['websocket_broadcast']['batches'] ?? 0),
-            '# HELP nexph_websocket_broadcast_pending_batches Pending WebSocket broadcast batches.',
-            '# TYPE nexph_websocket_broadcast_pending_batches gauge',
-            'nexph_websocket_broadcast_pending_batches ' . (int) ($stats['websocket_broadcast']['pending_batches'] ?? 0),
-            '# HELP nexph_websocket_backpressure_skips_total WebSocket frames skipped by backpressure.',
-            '# TYPE nexph_websocket_backpressure_skips_total counter',
-            'nexph_websocket_backpressure_skips_total ' . (int) ($stats['websocket_backpressure']['skips'] ?? 0),
-            '# HELP nexph_websocket_backpressure_closes_total WebSocket connections closed by backpressure.',
-            '# TYPE nexph_websocket_backpressure_closes_total counter',
-            'nexph_websocket_backpressure_closes_total ' . (int) ($stats['websocket_backpressure']['closes'] ?? 0),
-            '# HELP nexph_websocket_read_limit_closes_total WebSocket connections closed by read buffer limit.',
-            '# TYPE nexph_websocket_read_limit_closes_total counter',
-            'nexph_websocket_read_limit_closes_total ' . (int) ($stats['websocket_limits']['read_limit_closes'] ?? 0),
-            '# HELP nexph_websocket_frame_limit_closes_total WebSocket connections closed by frame size limit.',
-            '# TYPE nexph_websocket_frame_limit_closes_total counter',
-            'nexph_websocket_frame_limit_closes_total ' . (int) ($stats['websocket_limits']['frame_limit_closes'] ?? 0),
-            '# HELP nexph_websocket_max_frame_bytes WebSocket max frame payload bytes.',
-            '# TYPE nexph_websocket_max_frame_bytes gauge',
-            'nexph_websocket_max_frame_bytes ' . (int) ($stats['websocket_limits']['max_frame_size'] ?? 0),
-            '# HELP nexph_websocket_max_read_buffer_bytes WebSocket max read buffer bytes.',
-            '# TYPE nexph_websocket_max_read_buffer_bytes gauge',
-            'nexph_websocket_max_read_buffer_bytes ' . (int) ($stats['websocket_limits']['max_read_buffer_size'] ?? 0),
-            '# HELP nexph_websocket_rooms Active WebSocket rooms.',
-            '# TYPE nexph_websocket_rooms gauge',
-            'nexph_websocket_rooms ' . (int) ($stats['websocket_rooms']['rooms'] ?? 0),
-            '# HELP nexph_websocket_room_memberships Active WebSocket room memberships.',
-            '# TYPE nexph_websocket_room_memberships gauge',
-            'nexph_websocket_room_memberships ' . (int) ($stats['websocket_rooms']['memberships'] ?? 0),
-            '# HELP nexph_connection_write_buffer_limit_bytes Per-connection write buffer limit.',
-            '# TYPE nexph_connection_write_buffer_limit_bytes gauge',
-            'nexph_connection_write_buffer_limit_bytes ' . $this->maxWriteBufferSize,
-            '# HELP nexph_connection_write_buffer_bytes Active write buffer bytes.',
-            '# TYPE nexph_connection_write_buffer_bytes gauge',
-            'nexph_connection_write_buffer_bytes ' . (int) ($stats['write_buffer']['bytes'] ?? 0),
-            '# HELP nexph_connection_write_buffer_max_bytes Max active connection write buffer bytes.',
-            '# TYPE nexph_connection_write_buffer_max_bytes gauge',
-            'nexph_connection_write_buffer_max_bytes ' . (int) ($stats['write_buffer']['max_bytes'] ?? 0),
-            '# HELP nexph_runtime_coroutines Active server coroutines.',
-            '# TYPE nexph_runtime_coroutines gauge',
-            'nexph_runtime_coroutines ' . (int) $stats['coroutines'],
-            '# HELP nexph_runtime_memory_bytes Current runtime memory.',
-            '# TYPE nexph_runtime_memory_bytes gauge',
-            'nexph_runtime_memory_bytes ' . (int) ($stats['memory']['current'] ?? 0),
-            '# HELP nexph_runtime_memory_peak_bytes Peak runtime memory.',
-            '# TYPE nexph_runtime_memory_peak_bytes gauge',
-            'nexph_runtime_memory_peak_bytes ' . (int) ($stats['memory']['peak'] ?? 0),
-            '# HELP nexph_runtime_loop_lag_ms Event loop lag EWMA.',
-            '# TYPE nexph_runtime_loop_lag_ms gauge',
-            'nexph_runtime_loop_lag_ms ' . $this->metricFloat($stats['loop']['lag_ms'] ?? 0),
-            '# HELP nexph_runtime_loop_lag_max_ms Event loop max lag.',
-            '# TYPE nexph_runtime_loop_lag_max_ms gauge',
-            'nexph_runtime_loop_lag_max_ms ' . $this->metricFloat($stats['loop']['lag_max_ms'] ?? 0),
-            '# HELP nexph_runtime_deferred_dropped_total Deferred callbacks dropped by queue limit.',
-            '# TYPE nexph_runtime_deferred_dropped_total counter',
-            'nexph_runtime_deferred_dropped_total ' . (int) ($stats['loop']['deferred_dropped'] ?? 0),
-            '# HELP nexph_runtime_deferred_limit Deferred callback queue limit.',
-            '# TYPE nexph_runtime_deferred_limit gauge',
-            'nexph_runtime_deferred_limit ' . (int) ($stats['loop']['deferred_limit'] ?? 0),
-            '# HELP nexph_runtime_memory_pressure_events_total Memory pressure state changes.',
-            '# TYPE nexph_runtime_memory_pressure_events_total counter',
-            'nexph_runtime_memory_pressure_events_total ' . (int) ($stats['memory_pressure']['events'] ?? 0),
-            '# HELP nexph_runtime_memory_pressure_rejected_total Connections rejected under memory pressure.',
-            '# TYPE nexph_runtime_memory_pressure_rejected_total counter',
-            'nexph_runtime_memory_pressure_rejected_total ' . (int) ($stats['memory_pressure']['rejected'] ?? 0),
-            '# HELP nexph_runtime_memory_pressure_closed_total Connections closed under memory pressure.',
-            '# TYPE nexph_runtime_memory_pressure_closed_total counter',
-            'nexph_runtime_memory_pressure_closed_total ' . (int) ($stats['memory_pressure']['closed'] ?? 0),
-            '# HELP nexph_runtime_workers_reporting Workers publishing stats.',
-            '# TYPE nexph_runtime_workers_reporting gauge',
-            'nexph_runtime_workers_reporting ' . (int) ($stats['workers_reporting'] ?? 0),
-            '# HELP nexph_object_pool_idle Idle pooled objects.',
-            '# TYPE nexph_object_pool_idle gauge',
-            'nexph_object_pool_idle{pool="request"} ' . (int) ($stats['pools']['request']['idle'] ?? 0),
-            'nexph_object_pool_idle{pool="response"} ' . (int) ($stats['pools']['response']['idle'] ?? 0),
-            'nexph_object_pool_idle{pool="buffer"} ' . (int) ($stats['pools']['buffer']['idle'] ?? 0),
-            '# HELP nexph_object_pool_reused_total Reused pooled objects.',
-            '# TYPE nexph_object_pool_reused_total counter',
-            'nexph_object_pool_reused_total{pool="request"} ' . (int) ($stats['pools']['request']['reused'] ?? 0),
-            'nexph_object_pool_reused_total{pool="response"} ' . (int) ($stats['pools']['response']['reused'] ?? 0),
-            'nexph_object_pool_reused_total{pool="buffer"} ' . (int) ($stats['pools']['buffer']['reused'] ?? 0),
-            '# HELP nexph_object_pool_created_total Created pooled objects.',
-            '# TYPE nexph_object_pool_created_total counter',
-            'nexph_object_pool_created_total{pool="request"} ' . (int) ($stats['pools']['request']['created'] ?? 0),
-            'nexph_object_pool_created_total{pool="response"} ' . (int) ($stats['pools']['response']['created'] ?? 0),
-            'nexph_object_pool_created_total{pool="buffer"} ' . (int) ($stats['pools']['buffer']['created'] ?? 0),
-            '# HELP nexph_object_pool_borrowed Active borrowed pooled objects.',
-            '# TYPE nexph_object_pool_borrowed gauge',
-            'nexph_object_pool_borrowed{pool="request"} ' . (int) ($stats['pools']['request']['borrowed'] ?? 0),
-            'nexph_object_pool_borrowed{pool="response"} ' . (int) ($stats['pools']['response']['borrowed'] ?? 0),
-            'nexph_object_pool_borrowed{pool="buffer"} ' . (int) ($stats['pools']['buffer']['borrowed'] ?? 0),
-            '# HELP nexph_object_pool_violations_total Pool safety violations.',
-            '# TYPE nexph_object_pool_violations_total counter',
-            'nexph_object_pool_violations_total{pool="response",type="foreign_release"} ' . (int) ($stats['pools']['response']['foreign_release'] ?? 0),
-            'nexph_object_pool_violations_total{pool="response",type="double_release"} ' . (int) ($stats['pools']['response']['double_release'] ?? 0),
-            'nexph_object_pool_violations_total{pool="response",type="contamination"} ' . (int) ($stats['pools']['response']['contamination'] ?? 0),
-            '# HELP nexph_object_tracker_active Runtime tracked live objects.',
-            '# TYPE nexph_object_tracker_active gauge',
-            'nexph_object_tracker_active ' . (int) ($stats['object_tracker']['active'] ?? 0),
-            '# HELP nexph_object_tracker_retained Runtime objects retained after context close.',
-            '# TYPE nexph_object_tracker_retained gauge',
-            'nexph_object_tracker_retained ' . (int) ($stats['object_tracker']['retained'] ?? 0),
-            '# HELP nexph_object_tracker_released_alive Runtime released objects still alive.',
-            '# TYPE nexph_object_tracker_released_alive gauge',
-            'nexph_object_tracker_released_alive ' . (int) ($stats['object_tracker']['released_alive'] ?? 0),
-            '# HELP nexph_runtime_contexts_open Open runtime contexts.',
-            '# TYPE nexph_runtime_contexts_open gauge',
-            'nexph_runtime_contexts_open ' . (int) ($stats['object_tracker']['contexts']['open'] ?? 0),
+            '# HELP nexphant_http_requests_total Total HTTP requests.',
+            '# TYPE nexphant_http_requests_total counter',
+            'nexphant_http_requests_total ' . (int) $stats['total_requests'],
+            '# HELP nexphant_http_active_requests Active HTTP requests.',
+            '# TYPE nexphant_http_active_requests gauge',
+            'nexphant_http_active_requests ' . (int) ($stats['active_requests'] ?? 0),
+            '# HELP nexphant_http_connections_total Total accepted connections.',
+            '# TYPE nexphant_http_connections_total counter',
+            'nexphant_http_connections_total ' . (int) $stats['total_connections'],
+            '# HELP nexphant_http_active_connections Active open connections.',
+            '# TYPE nexphant_http_active_connections gauge',
+            'nexphant_http_active_connections ' . (int) $stats['active_connections'],
+            '# HELP nexphant_websockets_total Total accepted WebSocket upgrades.',
+            '# TYPE nexphant_websockets_total counter',
+            'nexphant_websockets_total ' . (int) ($stats['total_websockets'] ?? 0),
+            '# HELP nexphant_active_websockets Active WebSocket connections.',
+            '# TYPE nexphant_active_websockets gauge',
+            'nexphant_active_websockets ' . (int) ($stats['active_websockets'] ?? 0),
+            '# HELP nexphant_sse_connections_total Total accepted SSE streams.',
+            '# TYPE nexphant_sse_connections_total counter',
+            'nexphant_sse_connections_total ' . (int) ($stats['total_sse_connections'] ?? 0),
+            '# HELP nexphant_sse_active_connections Active SSE streams.',
+            '# TYPE nexphant_sse_active_connections gauge',
+            'nexphant_sse_active_connections ' . (int) ($stats['active_sse_connections'] ?? 0),
+            '# HELP nexphant_sse_events_sent_total SSE events sent.',
+            '# TYPE nexphant_sse_events_sent_total counter',
+            'nexphant_sse_events_sent_total ' . (int) ($stats['sse']['events_sent'] ?? 0),
+            '# HELP nexphant_sse_heartbeats_total SSE heartbeat comments sent.',
+            '# TYPE nexphant_sse_heartbeats_total counter',
+            'nexphant_sse_heartbeats_total ' . (int) ($stats['sse']['heartbeats_sent'] ?? 0),
+            '# HELP nexphant_sse_backpressure_closes_total SSE connections closed by backpressure.',
+            '# TYPE nexphant_sse_backpressure_closes_total counter',
+            'nexphant_sse_backpressure_closes_total ' . (int) ($stats['sse']['backpressure_closes'] ?? 0),
+            '# HELP nexphant_sse_auth_failures_total SSE auth failures.',
+            '# TYPE nexphant_sse_auth_failures_total counter',
+            'nexphant_sse_auth_failures_total ' . (int) ($stats['sse']['auth_failures'] ?? 0),
+            '# HELP nexphant_sse_replay_requests_total SSE resume requests.',
+            '# TYPE nexphant_sse_replay_requests_total counter',
+            'nexphant_sse_replay_requests_total ' . (int) ($stats['sse']['replay_requests'] ?? 0),
+            '# HELP nexphant_sse_replayed_events_total SSE events replayed on resume.',
+            '# TYPE nexphant_sse_replayed_events_total counter',
+            'nexphant_sse_replayed_events_total ' . (int) ($stats['sse']['replayed_events'] ?? 0),
+            '# HELP nexphant_sse_replay_expired_total SSE resume requests with missing event id.',
+            '# TYPE nexphant_sse_replay_expired_total counter',
+            'nexphant_sse_replay_expired_total ' . (int) ($stats['sse']['replay_expired'] ?? 0),
+            '# HELP nexphant_sse_replay_buffer_events SSE replay buffer events.',
+            '# TYPE nexphant_sse_replay_buffer_events gauge',
+            'nexphant_sse_replay_buffer_events ' . (int) ($stats['sse']['replay_buffer_events'] ?? 0),
+            '# HELP nexphant_sse_broadcasts_total SSE broadcast calls.',
+            '# TYPE nexphant_sse_broadcasts_total counter',
+            'nexphant_sse_broadcasts_total ' . (int) ($stats['sse']['broadcasts'] ?? 0),
+            '# HELP nexphant_sse_local_deliveries_total SSE local event deliveries.',
+            '# TYPE nexphant_sse_local_deliveries_total counter',
+            'nexphant_sse_local_deliveries_total ' . (int) ($stats['sse']['local_deliveries'] ?? 0),
+            '# HELP nexphant_sse_bus_published_total SSE events published to cross-worker bus.',
+            '# TYPE nexphant_sse_bus_published_total counter',
+            'nexphant_sse_bus_published_total ' . (int) ($stats['sse']['bus_published'] ?? 0),
+            '# HELP nexphant_sse_bus_deliveries_total SSE deliveries from cross-worker bus.',
+            '# TYPE nexphant_sse_bus_deliveries_total counter',
+            'nexphant_sse_bus_deliveries_total ' . (int) ($stats['sse']['bus_deliveries'] ?? 0),
+            '# HELP nexphant_sse_bus_bytes SSE cross-worker bus file size.',
+            '# TYPE nexphant_sse_bus_bytes gauge',
+            'nexphant_sse_bus_bytes ' . (int) ($stats['sse']['bus_file_size'] ?? 0),
+            '# HELP nexphant_sse_bus_seen_events SSE bus events remembered for dedupe.',
+            '# TYPE nexphant_sse_bus_seen_events gauge',
+            'nexphant_sse_bus_seen_events ' . (int) ($stats['sse']['bus_seen_events'] ?? 0),
+            '# HELP nexphant_websocket_pings_total WebSocket pings sent.',
+            '# TYPE nexphant_websocket_pings_total counter',
+            'nexphant_websocket_pings_total ' . (int) ($stats['websocket_heartbeat']['pings_sent'] ?? 0),
+            '# HELP nexphant_websocket_pongs_total WebSocket pongs received.',
+            '# TYPE nexphant_websocket_pongs_total counter',
+            'nexphant_websocket_pongs_total ' . (int) ($stats['websocket_heartbeat']['pongs_received'] ?? 0),
+            '# HELP nexphant_websocket_heartbeat_timeouts_total WebSocket heartbeat timeouts.',
+            '# TYPE nexphant_websocket_heartbeat_timeouts_total counter',
+            'nexphant_websocket_heartbeat_timeouts_total ' . (int) ($stats['websocket_heartbeat']['heartbeat_timeouts'] ?? 0),
+            '# HELP nexphant_websocket_idle_closes_total WebSocket idle closes.',
+            '# TYPE nexphant_websocket_idle_closes_total counter',
+            'nexphant_websocket_idle_closes_total ' . (int) ($stats['websocket_heartbeat']['idle_closes'] ?? 0),
+            '# HELP nexphant_websocket_bus_bytes WebSocket cross-worker bus file size.',
+            '# TYPE nexphant_websocket_bus_bytes gauge',
+            'nexphant_websocket_bus_bytes ' . (int) ($stats['websocket_bus']['file_size'] ?? 0),
+            '# HELP nexphant_websocket_broadcasts_total WebSocket broadcast calls.',
+            '# TYPE nexphant_websocket_broadcasts_total counter',
+            'nexphant_websocket_broadcasts_total ' . (int) ($stats['websocket_broadcast']['broadcasts'] ?? 0),
+            '# HELP nexphant_websocket_broadcast_deliveries_total WebSocket broadcast frame deliveries.',
+            '# TYPE nexphant_websocket_broadcast_deliveries_total counter',
+            'nexphant_websocket_broadcast_deliveries_total ' . (int) ($stats['websocket_broadcast']['deliveries'] ?? 0),
+            '# HELP nexphant_websocket_broadcast_batches_total WebSocket broadcast delivery batches.',
+            '# TYPE nexphant_websocket_broadcast_batches_total counter',
+            'nexphant_websocket_broadcast_batches_total ' . (int) ($stats['websocket_broadcast']['batches'] ?? 0),
+            '# HELP nexphant_websocket_broadcast_pending_batches Pending WebSocket broadcast batches.',
+            '# TYPE nexphant_websocket_broadcast_pending_batches gauge',
+            'nexphant_websocket_broadcast_pending_batches ' . (int) ($stats['websocket_broadcast']['pending_batches'] ?? 0),
+            '# HELP nexphant_websocket_backpressure_skips_total WebSocket frames skipped by backpressure.',
+            '# TYPE nexphant_websocket_backpressure_skips_total counter',
+            'nexphant_websocket_backpressure_skips_total ' . (int) ($stats['websocket_backpressure']['skips'] ?? 0),
+            '# HELP nexphant_websocket_backpressure_closes_total WebSocket connections closed by backpressure.',
+            '# TYPE nexphant_websocket_backpressure_closes_total counter',
+            'nexphant_websocket_backpressure_closes_total ' . (int) ($stats['websocket_backpressure']['closes'] ?? 0),
+            '# HELP nexphant_websocket_read_limit_closes_total WebSocket connections closed by read buffer limit.',
+            '# TYPE nexphant_websocket_read_limit_closes_total counter',
+            'nexphant_websocket_read_limit_closes_total ' . (int) ($stats['websocket_limits']['read_limit_closes'] ?? 0),
+            '# HELP nexphant_websocket_frame_limit_closes_total WebSocket connections closed by frame size limit.',
+            '# TYPE nexphant_websocket_frame_limit_closes_total counter',
+            'nexphant_websocket_frame_limit_closes_total ' . (int) ($stats['websocket_limits']['frame_limit_closes'] ?? 0),
+            '# HELP nexphant_websocket_max_frame_bytes WebSocket max frame payload bytes.',
+            '# TYPE nexphant_websocket_max_frame_bytes gauge',
+            'nexphant_websocket_max_frame_bytes ' . (int) ($stats['websocket_limits']['max_frame_size'] ?? 0),
+            '# HELP nexphant_websocket_max_read_buffer_bytes WebSocket max read buffer bytes.',
+            '# TYPE nexphant_websocket_max_read_buffer_bytes gauge',
+            'nexphant_websocket_max_read_buffer_bytes ' . (int) ($stats['websocket_limits']['max_read_buffer_size'] ?? 0),
+            '# HELP nexphant_websocket_rooms Active WebSocket rooms.',
+            '# TYPE nexphant_websocket_rooms gauge',
+            'nexphant_websocket_rooms ' . (int) ($stats['websocket_rooms']['rooms'] ?? 0),
+            '# HELP nexphant_websocket_room_memberships Active WebSocket room memberships.',
+            '# TYPE nexphant_websocket_room_memberships gauge',
+            'nexphant_websocket_room_memberships ' . (int) ($stats['websocket_rooms']['memberships'] ?? 0),
+            '# HELP nexphant_connection_write_buffer_limit_bytes Per-connection write buffer limit.',
+            '# TYPE nexphant_connection_write_buffer_limit_bytes gauge',
+            'nexphant_connection_write_buffer_limit_bytes ' . $this->maxWriteBufferSize,
+            '# HELP nexphant_connection_write_buffer_bytes Active write buffer bytes.',
+            '# TYPE nexphant_connection_write_buffer_bytes gauge',
+            'nexphant_connection_write_buffer_bytes ' . (int) ($stats['write_buffer']['bytes'] ?? 0),
+            '# HELP nexphant_connection_write_buffer_max_bytes Max active connection write buffer bytes.',
+            '# TYPE nexphant_connection_write_buffer_max_bytes gauge',
+            'nexphant_connection_write_buffer_max_bytes ' . (int) ($stats['write_buffer']['max_bytes'] ?? 0),
+            '# HELP nexphant_runtime_coroutines Active server coroutines.',
+            '# TYPE nexphant_runtime_coroutines gauge',
+            'nexphant_runtime_coroutines ' . (int) $stats['coroutines'],
+            '# HELP nexphant_runtime_memory_bytes Current runtime memory.',
+            '# TYPE nexphant_runtime_memory_bytes gauge',
+            'nexphant_runtime_memory_bytes ' . (int) ($stats['memory']['current'] ?? 0),
+            '# HELP nexphant_runtime_memory_peak_bytes Peak runtime memory.',
+            '# TYPE nexphant_runtime_memory_peak_bytes gauge',
+            'nexphant_runtime_memory_peak_bytes ' . (int) ($stats['memory']['peak'] ?? 0),
+            '# HELP nexphant_runtime_loop_lag_ms Event loop lag EWMA.',
+            '# TYPE nexphant_runtime_loop_lag_ms gauge',
+            'nexphant_runtime_loop_lag_ms ' . $this->metricFloat($stats['loop']['lag_ms'] ?? 0),
+            '# HELP nexphant_runtime_loop_lag_max_ms Event loop max lag.',
+            '# TYPE nexphant_runtime_loop_lag_max_ms gauge',
+            'nexphant_runtime_loop_lag_max_ms ' . $this->metricFloat($stats['loop']['lag_max_ms'] ?? 0),
+            '# HELP nexphant_runtime_deferred_dropped_total Deferred callbacks dropped by queue limit.',
+            '# TYPE nexphant_runtime_deferred_dropped_total counter',
+            'nexphant_runtime_deferred_dropped_total ' . (int) ($stats['loop']['deferred_dropped'] ?? 0),
+            '# HELP nexphant_runtime_deferred_limit Deferred callback queue limit.',
+            '# TYPE nexphant_runtime_deferred_limit gauge',
+            'nexphant_runtime_deferred_limit ' . (int) ($stats['loop']['deferred_limit'] ?? 0),
+            '# HELP nexphant_runtime_memory_pressure_events_total Memory pressure state changes.',
+            '# TYPE nexphant_runtime_memory_pressure_events_total counter',
+            'nexphant_runtime_memory_pressure_events_total ' . (int) ($stats['memory_pressure']['events'] ?? 0),
+            '# HELP nexphant_runtime_memory_pressure_rejected_total Connections rejected under memory pressure.',
+            '# TYPE nexphant_runtime_memory_pressure_rejected_total counter',
+            'nexphant_runtime_memory_pressure_rejected_total ' . (int) ($stats['memory_pressure']['rejected'] ?? 0),
+            '# HELP nexphant_runtime_memory_pressure_closed_total Connections closed under memory pressure.',
+            '# TYPE nexphant_runtime_memory_pressure_closed_total counter',
+            'nexphant_runtime_memory_pressure_closed_total ' . (int) ($stats['memory_pressure']['closed'] ?? 0),
+            '# HELP nexphant_runtime_workers_reporting Workers publishing stats.',
+            '# TYPE nexphant_runtime_workers_reporting gauge',
+            'nexphant_runtime_workers_reporting ' . (int) ($stats['workers_reporting'] ?? 0),
+            '# HELP nexphant_object_pool_idle Idle pooled objects.',
+            '# TYPE nexphant_object_pool_idle gauge',
+            'nexphant_object_pool_idle{pool="request"} ' . (int) ($stats['pools']['request']['idle'] ?? 0),
+            'nexphant_object_pool_idle{pool="response"} ' . (int) ($stats['pools']['response']['idle'] ?? 0),
+            'nexphant_object_pool_idle{pool="buffer"} ' . (int) ($stats['pools']['buffer']['idle'] ?? 0),
+            '# HELP nexphant_object_pool_reused_total Reused pooled objects.',
+            '# TYPE nexphant_object_pool_reused_total counter',
+            'nexphant_object_pool_reused_total{pool="request"} ' . (int) ($stats['pools']['request']['reused'] ?? 0),
+            'nexphant_object_pool_reused_total{pool="response"} ' . (int) ($stats['pools']['response']['reused'] ?? 0),
+            'nexphant_object_pool_reused_total{pool="buffer"} ' . (int) ($stats['pools']['buffer']['reused'] ?? 0),
+            '# HELP nexphant_object_pool_created_total Created pooled objects.',
+            '# TYPE nexphant_object_pool_created_total counter',
+            'nexphant_object_pool_created_total{pool="request"} ' . (int) ($stats['pools']['request']['created'] ?? 0),
+            'nexphant_object_pool_created_total{pool="response"} ' . (int) ($stats['pools']['response']['created'] ?? 0),
+            'nexphant_object_pool_created_total{pool="buffer"} ' . (int) ($stats['pools']['buffer']['created'] ?? 0),
+            '# HELP nexphant_object_pool_borrowed Active borrowed pooled objects.',
+            '# TYPE nexphant_object_pool_borrowed gauge',
+            'nexphant_object_pool_borrowed{pool="request"} ' . (int) ($stats['pools']['request']['borrowed'] ?? 0),
+            'nexphant_object_pool_borrowed{pool="response"} ' . (int) ($stats['pools']['response']['borrowed'] ?? 0),
+            'nexphant_object_pool_borrowed{pool="buffer"} ' . (int) ($stats['pools']['buffer']['borrowed'] ?? 0),
+            '# HELP nexphant_object_pool_violations_total Pool safety violations.',
+            '# TYPE nexphant_object_pool_violations_total counter',
+            'nexphant_object_pool_violations_total{pool="response",type="foreign_release"} ' . (int) ($stats['pools']['response']['foreign_release'] ?? 0),
+            'nexphant_object_pool_violations_total{pool="response",type="double_release"} ' . (int) ($stats['pools']['response']['double_release'] ?? 0),
+            'nexphant_object_pool_violations_total{pool="response",type="contamination"} ' . (int) ($stats['pools']['response']['contamination'] ?? 0),
+            '# HELP nexphant_object_tracker_active Runtime tracked live objects.',
+            '# TYPE nexphant_object_tracker_active gauge',
+            'nexphant_object_tracker_active ' . (int) ($stats['object_tracker']['active'] ?? 0),
+            '# HELP nexphant_object_tracker_retained Runtime objects retained after context close.',
+            '# TYPE nexphant_object_tracker_retained gauge',
+            'nexphant_object_tracker_retained ' . (int) ($stats['object_tracker']['retained'] ?? 0),
+            '# HELP nexphant_object_tracker_released_alive Runtime released objects still alive.',
+            '# TYPE nexphant_object_tracker_released_alive gauge',
+            'nexphant_object_tracker_released_alive ' . (int) ($stats['object_tracker']['released_alive'] ?? 0),
+            '# HELP nexphant_runtime_contexts_open Open runtime contexts.',
+            '# TYPE nexphant_runtime_contexts_open gauge',
+            'nexphant_runtime_contexts_open ' . (int) ($stats['object_tracker']['contexts']['open'] ?? 0),
         ];
 
         $http = $stats['http'] ?? [];
-        $lines[] = '# HELP nexph_http_responses_total HTTP responses by status.';
-        $lines[] = '# TYPE nexph_http_responses_total counter';
+        $lines[] = '# HELP nexphant_http_responses_total HTTP responses by status.';
+        $lines[] = '# TYPE nexphant_http_responses_total counter';
         foreach ($http['status_counts'] ?? [] as $status => $count) {
-            $lines[] = 'nexph_http_responses_total{status="' . $this->metricLabel((string) $status) . '"} ' . (int) $count;
+            $lines[] = 'nexphant_http_responses_total{status="' . $this->metricLabel((string) $status) . '"} ' . (int) $count;
         }
 
-        $lines[] = '# HELP nexph_http_route_requests_total HTTP requests by normalized route.';
-        $lines[] = '# TYPE nexph_http_route_requests_total counter';
+        $lines[] = '# HELP nexphant_http_route_requests_total HTTP requests by normalized route.';
+        $lines[] = '# TYPE nexphant_http_route_requests_total counter';
         foreach ($http['route_counts'] ?? [] as $route => $count) {
             [$method, $path] = array_pad(explode(' ', (string) $route, 2), 2, 'unknown');
-            $lines[] = 'nexph_http_route_requests_total{method="' . $this->metricLabel($method) . '",path="' . $this->metricLabel($path) . '"} ' . (int) $count;
+            $lines[] = 'nexphant_http_route_requests_total{method="' . $this->metricLabel($method) . '",path="' . $this->metricLabel($path) . '"} ' . (int) $count;
         }
         foreach ($http['route_latency'] ?? [] as $route => $latency) {
             [$method, $path] = array_pad(explode(' ', (string) $route, 2), 2, 'unknown');
             $labels = '{method="' . $this->metricLabel($method) . '",path="' . $this->metricLabel($path) . '"}';
-            $lines[] = 'nexph_http_route_request_duration_p95_ms' . $labels . ' ' . $this->metricFloat($latency['p95'] ?? 0);
-            $lines[] = 'nexph_http_route_request_duration_p99_ms' . $labels . ' ' . $this->metricFloat($latency['p99'] ?? 0);
+            $lines[] = 'nexphant_http_route_request_duration_p95_ms' . $labels . ' ' . $this->metricFloat($latency['p95'] ?? 0);
+            $lines[] = 'nexphant_http_route_request_duration_p99_ms' . $labels . ' ' . $this->metricFloat($latency['p99'] ?? 0);
         }
 
-        $lines[] = '# HELP nexph_http_request_duration_ms HTTP request duration in milliseconds.';
-        $lines[] = '# TYPE nexph_http_request_duration_ms histogram';
+        $lines[] = '# HELP nexphant_http_request_duration_ms HTTP request duration in milliseconds.';
+        $lines[] = '# TYPE nexphant_http_request_duration_ms histogram';
         foreach ($http['latency_buckets_ms'] ?? [] as $bucket => $count) {
-            $lines[] = 'nexph_http_request_duration_ms_bucket{le="' . $this->metricLabel((string) $bucket) . '"} ' . (int) $count;
+            $lines[] = 'nexphant_http_request_duration_ms_bucket{le="' . $this->metricLabel((string) $bucket) . '"} ' . (int) $count;
         }
-        $lines[] = 'nexph_http_request_duration_ms_sum ' . $this->metricFloat($http['latency_sum_ms'] ?? 0);
-        $lines[] = 'nexph_http_request_duration_ms_count ' . (int) ($http['latency_count'] ?? 0);
-        $lines[] = 'nexph_http_request_duration_ms_max ' . $this->metricFloat($http['latency_max_ms'] ?? 0);
+        $lines[] = 'nexphant_http_request_duration_ms_sum ' . $this->metricFloat($http['latency_sum_ms'] ?? 0);
+        $lines[] = 'nexphant_http_request_duration_ms_count ' . (int) ($http['latency_count'] ?? 0);
+        $lines[] = 'nexphant_http_request_duration_ms_max ' . $this->metricFloat($http['latency_max_ms'] ?? 0);
 
         foreach ($stats['workers'] ?? [] as $worker) {
             $id = (int) ($worker['worker_id'] ?? 0);
             $labels = '{worker_id="' . $id . '",pid="' . (int) ($worker['pid'] ?? 0) . '"}';
             $loop = $worker['loop'] ?? [];
-            $lines[] = 'nexph_worker_http_requests_total' . $labels . ' ' . (int) ($worker['total_requests'] ?? 0);
-            $lines[] = 'nexph_worker_active_connections' . $labels . ' ' . (int) ($worker['active_connections'] ?? 0);
-            $lines[] = 'nexph_worker_active_websockets' . $labels . ' ' . (int) ($worker['active_websockets'] ?? 0);
-            $lines[] = 'nexph_worker_active_sse_connections' . $labels . ' ' . (int) ($worker['active_sse_connections'] ?? 0);
-            $lines[] = 'nexph_worker_coroutines' . $labels . ' ' . (int) ($worker['coroutines'] ?? 0);
-            $lines[] = 'nexph_worker_loop_lag_ms' . $labels . ' ' . $this->metricFloat($loop['lag_ms'] ?? 0);
-            $lines[] = 'nexph_worker_loop_readers' . $labels . ' ' . (int) ($loop['readers'] ?? 0);
-            $lines[] = 'nexph_worker_loop_writers' . $labels . ' ' . (int) ($loop['writers'] ?? 0);
+            $lines[] = 'nexphant_worker_http_requests_total' . $labels . ' ' . (int) ($worker['total_requests'] ?? 0);
+            $lines[] = 'nexphant_worker_active_connections' . $labels . ' ' . (int) ($worker['active_connections'] ?? 0);
+            $lines[] = 'nexphant_worker_active_websockets' . $labels . ' ' . (int) ($worker['active_websockets'] ?? 0);
+            $lines[] = 'nexphant_worker_active_sse_connections' . $labels . ' ' . (int) ($worker['active_sse_connections'] ?? 0);
+            $lines[] = 'nexphant_worker_coroutines' . $labels . ' ' . (int) ($worker['coroutines'] ?? 0);
+            $lines[] = 'nexphant_worker_loop_lag_ms' . $labels . ' ' . $this->metricFloat($loop['lag_ms'] ?? 0);
+            $lines[] = 'nexphant_worker_loop_readers' . $labels . ' ' . (int) ($loop['readers'] ?? 0);
+            $lines[] = 'nexphant_worker_loop_writers' . $labels . ' ' . (int) ($loop['writers'] ?? 0);
         }
 
         return implode("\n", $lines) . "\n";

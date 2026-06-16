@@ -1,10 +1,10 @@
 <?php
 
-namespace Nexph\Server\Server;
+namespace nexphant\Server\Server;
 
-use Nexph\Server\Server\Native\NativeOps;
-use Nexph\Server\Server\Native\PhpNativeOps;
-use Nexph\Server\Socket\SocketDriverInterface;
+use nexphant\Server\Server\Native\NativeOps;
+use nexphant\Server\Server\Native\PhpNativeOps;
+use nexphant\Server\Socket\SocketDriverInterface;
 
 final class NativeFastLoop
 {

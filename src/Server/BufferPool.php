@@ -1,10 +1,10 @@
 <?php
 
-namespace Nexph\Server\Server;
+namespace nexphant\Server\Server;
 
-use Nexph\Server\ObjectPool;
-use Nexph\Server\ObjectTracker;
-use Nexph\Server\BufferSlab;
+use nexphant\Server\ObjectPool;
+use nexphant\Server\ObjectTracker;
+use nexphant\Server\BufferSlab;
 
 class BufferPool {
     private ObjectPool $pool;

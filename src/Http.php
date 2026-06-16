@@ -1,5 +1,5 @@
 <?php
-namespace Nexph\Server;
+namespace nexphant\Server;
 
 class Http extends HttpServer
 {

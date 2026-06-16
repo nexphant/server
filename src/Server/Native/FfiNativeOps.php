@@ -1,12 +1,12 @@
 <?php
 
-namespace Nexph\Server\Server\Native;
+namespace nexphant\Server\Server\Native;
 
 final class FfiNativeOps implements NativeOps
 {
     private const CDEF = <<<'CDEF'
-int nexph_find_header_end(const char *buffer, size_t length, size_t offset);
-int nexph_has_connection_close(const char *buffer, size_t length);
+int nexphant_find_header_end(const char *buffer, size_t length, size_t offset);
+int nexphant_has_connection_close(const char *buffer, size_t length);
 CDEF;
 
     private ?\FFI $ffi = null;
@@ -16,7 +16,7 @@ CDEF;
         if (!class_exists(\FFI::class)) {
             return;
         }
-        $library ??= getenv('NEXPH_NATIVE_LIB') ?: '';
+        $library ??= getenv('nexphant_NATIVE_LIB') ?: '';
         if ($library === '' || !is_file($library)) {
             return;
         }
@@ -32,7 +32,7 @@ CDEF;
         if ($this->ffi === null) {
             return false;
         }
-        $pos = $this->ffi->nexph_find_header_end($buffer, strlen($buffer), max(0, $offset));
+        $pos = $this->ffi->nexphant_find_header_end($buffer, strlen($buffer), max(0, $offset));
         return $pos >= 0 ? $pos : false;
     }
 
@@ -41,7 +41,7 @@ CDEF;
         if ($this->ffi === null) {
             return stripos($buffer, "Connection: close") !== false;
         }
-        return $this->ffi->nexph_has_connection_close($buffer, strlen($buffer)) === 1;
+        return $this->ffi->nexphant_has_connection_close($buffer, strlen($buffer)) === 1;
     }
 
     public function available(): bool

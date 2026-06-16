@@ -1,5 +1,5 @@
 <?php
-namespace Nexph\Server\Server;
+namespace nexphant\Server\Server;
 
 class ConnectionHandler
 {

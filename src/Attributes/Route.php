@@ -1,6 +1,6 @@
 <?php
 
-namespace Nexph\Server\Attributes;
+namespace nexphant\Server\Attributes;
 
 #[\Attribute(\Attribute::TARGET_CLASS | \Attribute::TARGET_METHOD | \Attribute::IS_REPEATABLE)]
 class Route

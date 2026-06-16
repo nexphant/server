@@ -1,18 +1,18 @@
 <?php
 
 /**
- * This file is part of the Nexph Framework.
+ * This file is part of the nexphant Framework.
  *
  * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace Nexph\Server;
+namespace nexphant\Server;
 
-use Nexph\Runtime\JsonSerializer;
+use nexphant\Runtime\JsonSerializer;
 
-class ServerResponse extends \Nexph\Response
+class ServerResponse extends \nexphant\Response
 {
     public function status(int $code): self
     {
@@ -152,8 +152,8 @@ class ServerResponse extends \Nexph\Response
             if ($now2 !== $jsonDateSecond2) {
                 $jsonDateSecond2 = $now2;
                 $d = gmdate('D, d M Y H:i:s T', $now2);
-                $jsonPrefix200KA = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nDate: {$d}\r\nServer: Nexph/1.0\r\nConnection: keep-alive\r\nContent-Length: ";
-                $jsonPrefix200Close = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nDate: {$d}\r\nServer: Nexph/1.0\r\nConnection: close\r\nContent-Length: ";
+                $jsonPrefix200KA = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nDate: {$d}\r\nServer: nexphant/1.0\r\nConnection: keep-alive\r\nContent-Length: ";
+                $jsonPrefix200Close = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nDate: {$d}\r\nServer: nexphant/1.0\r\nConnection: close\r\nContent-Length: ";
             }
             $this->sent = true;
             $prefix = $keepAlive ? $jsonPrefix200KA : $jsonPrefix200Close;
@@ -169,7 +169,7 @@ class ServerResponse extends \Nexph\Response
             $date = gmdate('D, d M Y H:i:s T', $now);
         }
         $headers['Date'] = $date;
-        $headers['Server'] = 'Nexph/1.0';
+        $headers['Server'] = 'nexphant/1.0';
         $headers['Connection'] = $headers['Connection'] ?? ($keepAlive ? 'keep-alive' : 'close');
 
         if (!empty($this->cookies)) {

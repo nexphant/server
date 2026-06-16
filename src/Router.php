@@ -1,14 +1,14 @@
 <?php
 
 /**
- * This file is part of the Nexph Framework.
+ * This file is part of the nexphant Framework.
  *
  * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace Nexph\Server;
+namespace nexphant\Server;
 
 class Route
 {
@@ -144,8 +144,8 @@ class Router
                     };
                     $result = ($route['handler'])($dummy, $dummyResp, []);
                     if (is_array($result)) {
-                        $json = \Nexph\Runtime\JsonSerializer::encode($result);
-                        $prebuilt = \Nexph\Server\RawResponse::json($json);
+                        $json = \nexphant\Runtime\JsonSerializer::encode($result);
+                        $prebuilt = \nexphant\Server\RawResponse::json($json);
                         $this->exactRoutes[$method][$path]['prebuilt'] = $prebuilt;
                         if (isset($this->fastRoutes[$method][$path])) {
                             $this->fastRoutes[$method][$path]['prebuilt'] = $prebuilt;

@@ -1,6 +1,6 @@
 <?php
 
-namespace Nexph\Server\Server\Native;
+namespace nexphant\Server\Server\Native;
 
 final class PhpNativeOps implements NativeOps
 {

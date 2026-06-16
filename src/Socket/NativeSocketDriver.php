@@ -1,6 +1,6 @@
 <?php
 
-namespace Nexph\Server\Socket;
+namespace nexphant\Server\Socket;
 
 class NativeSocketDriver implements SocketDriverInterface
 {

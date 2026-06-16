@@ -1,6 +1,6 @@
 <?php
 
-namespace Nexph\Server\Middleware;
+namespace nexphant\Server\Middleware;
 
 class GzipCompressionMiddleware
 {

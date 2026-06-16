@@ -1,6 +1,6 @@
 <?php
 
-use Nexph\App;
+use nexphant\App;
 
 require __DIR__ . '/../vendor/autoload.php';
 

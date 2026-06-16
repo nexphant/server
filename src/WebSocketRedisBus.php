@@ -1,14 +1,14 @@
 <?php
 
 /**
- * This file is part of the Nexph Framework.
+ * This file is part of the nexphant Framework.
  *
  * (c) nexphant <https://github.com/nexphant>
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
  */
-namespace Nexph\Server;
+namespace nexphant\Server;
 
 class WebSocketRedisBus
 {
@@ -16,7 +16,7 @@ class WebSocketRedisBus
     private int $port = 6379;
     private ?string $password = null;
     private int $database = 0;
-    private string $channel = 'nexph:websocket';
+    private string $channel = 'nexphant:websocket';
     private $publisher = null;
     private $subscriber = null;
     private string $buffer = '';
@@ -24,7 +24,7 @@ class WebSocketRedisBus
     private int $received = 0;
     private int $errors = 0;
 
-    public function __construct(string $url = 'redis://127.0.0.1:6379/0', string $channel = 'nexph:websocket')
+    public function __construct(string $url = 'redis://127.0.0.1:6379/0', string $channel = 'nexphant:websocket')
     {
         $parts = parse_url($url) ?: [];
         $this->host = (string) ($parts['host'] ?? $this->host);
