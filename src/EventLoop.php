@@ -23,6 +23,7 @@ class EventLoop
     private array $deferred = [];
     private int $deferredHead = 0;
     private int $deferredCount = 0;
+    private int $streamSelectErrors = 0;
     private array $signals = [];
     private bool $running = false;
     private int $tickInterval = 1000;
@@ -257,9 +258,14 @@ class EventLoop
         $result = @stream_select($read, $write, $except, $tvSec, $tvUsec);
 
         if ($result === false) {
+            $this->streamSelectErrors++;
             $this->cleanupInvalidStreams();
+            if ($this->streamSelectErrors > 10) {
+                usleep(1000);
+            }
             return;
         }
+        $this->streamSelectErrors = 0;
 
         // Handle readable
         $readCount = 0;

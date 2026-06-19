@@ -69,6 +69,12 @@ class AsyncIO
     {
         $deferred = new Deferred();
 
+        $scheme = strtolower(parse_url($url, PHP_URL_SCHEME) ?? '');
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            $deferred->resolve(['status' => 0, 'headers' => [], 'body' => '', 'error' => 'Invalid URL scheme']);
+            return yield $deferred;
+        }
+
         self::$loop?->defer(function () use ($method, $url, $options, $deferred) {
             $context = stream_context_create([
                 'http' => [
@@ -214,9 +220,10 @@ class AsyncDatabase
 
     public static function insert(string $table, array $data): \Generator
     {
-        $columns = implode(', ', array_keys($data));
+        self::assertIdentifier($table);
+        $columns = implode(', ', array_map([self::class, 'quoteId'], array_keys($data)));
         $placeholders = implode(', ', array_fill(0, count($data), '?'));
-        $sql = "INSERT INTO {$table} ({$columns}) VALUES ({$placeholders})";
+        $sql = "INSERT INTO `{$table}` ({$columns}) VALUES ({$placeholders})";
 
         $deferred = new Deferred();
         if (!self::$config) {
@@ -249,14 +256,16 @@ class AsyncDatabase
 
     public static function update(string $table, array $data, string $where, array $whereParams = []): \Generator
     {
-        $set = implode(', ', array_map(fn($k) => "{$k} = ?", array_keys($data)));
-        $sql = "UPDATE {$table} SET {$set} WHERE {$where}";
+        self::assertIdentifier($table);
+        $set = implode(', ', array_map(fn($k) => self::quoteId($k) . " = ?", array_keys($data)));
+        $sql = "UPDATE `{$table}` SET {$set} WHERE {$where}";
         return yield from self::query($sql, array_merge(array_values($data), $whereParams));
     }
 
     public static function delete(string $table, string $where, array $params = []): \Generator
     {
-        $sql = "DELETE FROM {$table} WHERE {$where}";
+        self::assertIdentifier($table);
+        $sql = "DELETE FROM `{$table}` WHERE {$where}";
         return yield from self::query($sql, $params);
     }
 
@@ -314,5 +323,18 @@ class AsyncDatabase
             return;
         }
         $deferred->resolve($result);
+    }
+
+    private static function assertIdentifier(string $name): void
+    {
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name)) {
+            throw new \InvalidArgumentException("Invalid identifier: {$name}");
+        }
+    }
+
+    private static function quoteId(string $name): string
+    {
+        self::assertIdentifier($name);
+        return "`{$name}`";
     }
 }

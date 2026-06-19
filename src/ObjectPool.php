@@ -14,8 +14,8 @@ class ObjectPool
 {
     /** @var object[] */
     private array $items = [];
-    private array $known = [];
-    private array $borrowed = [];
+    private \WeakMap $known;
+    private \WeakMap $borrowed;
     private int $created = 0;
     private int $reused = 0;
     private int $released = 0;
@@ -32,6 +32,8 @@ class ObjectPool
         private readonly ?ObjectTracker $tracker = null,
         private readonly bool $safety = false,
     ) {
+        $this->known = new \WeakMap();
+        $this->borrowed = new \WeakMap();
     }
 
     public function acquire(string $owner = '', string $context = ''): object
@@ -51,8 +53,8 @@ class ObjectPool
         $item = ($this->factory)();
 
         if ($this->safety) {
-            $this->known[spl_object_id($item)] = true;
-            $this->borrowed[spl_object_id($item)] = true;
+            $this->known[$item] = true;
+            $this->borrowed[$item] = true;
         }
 
         $this->tracker?->track($item, $this->name, $owner, $context, 'borrowed');
@@ -62,16 +64,15 @@ class ObjectPool
     public function release(object $item): void
     {
         if ($this->safety) {
-            $id = spl_object_id($item);
-            if (!isset($this->known[$id])) {
+            if (!isset($this->known[$item])) {
                 $this->foreignRelease++;
                 return;
             }
-            if (!isset($this->borrowed[$id])) {
+            if (!isset($this->borrowed[$item])) {
                 $this->doubleRelease++;
                 return;
             }
-            unset($this->borrowed[$id]);
+            unset($this->borrowed[$item]);
         }
 
         $this->doReset($item);

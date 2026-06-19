@@ -115,45 +115,37 @@ class Router
         }
     }
 
-    public function markCacheJson(string $method, string $path): void
+    public function markCacheJson(string $method, string $path, bool $precompute = false): void
     {
-        if (isset($this->exactRoutes[$method][$path])) {
-            $this->exactRoutes[$method][$path]['cache_json'] = true;
-            $route = $this->exactRoutes[$method][$path];
-            if (is_callable($route['handler']) && empty($route['middleware'])) {
-                try {
-                    $dummy = new class extends ServerRequest {
-                        public function __call($name, $args)
-                        {
-                            return $args[0] ?? null;
-                        }
-                        public function __get($name)
-                        {
-                            return '';
-                        }
-                        public function getAttribute(string $name, mixed $default = null): mixed
-                        {
-                            return $default;
-                        }
-                    };
-                    $dummyResp = new class extends ServerResponse {
-                        public function __call($name, $args)
-                        {
-                            return $this;
-                        }
-                    };
-                    $result = ($route['handler'])($dummy, $dummyResp, []);
-                    if (is_array($result)) {
-                        $json = \Nexphant\Runtime\JsonSerializer::encode($result);
-                        $prebuilt = \Nexphant\Server\RawResponse::json($json);
-                        $this->exactRoutes[$method][$path]['prebuilt'] = $prebuilt;
-                        if (isset($this->fastRoutes[$method][$path])) {
-                            $this->fastRoutes[$method][$path]['prebuilt'] = $prebuilt;
-                        }
-                    }
-                } catch (\Throwable $e) {
+        if (!isset($this->exactRoutes[$method][$path])) {
+            return;
+        }
+        $this->exactRoutes[$method][$path]['cache_json'] = true;
+        $route = $this->exactRoutes[$method][$path];
+
+        if (!$precompute || !is_callable($route['handler']) || !empty($route['middleware'])) {
+            return;
+        }
+
+        try {
+            $dummy = new class extends ServerRequest {
+                public function __call($name, $args) { return $args[0] ?? null; }
+                public function __get($name) { return ''; }
+                public function getAttribute(string $name, mixed $default = null): mixed { return $default; }
+            };
+            $dummyResp = new class extends ServerResponse {
+                public function __call($name, $args) { return $this; }
+            };
+            $result = ($route['handler'])($dummy, $dummyResp, []);
+            if (is_array($result)) {
+                $json = \Nexphant\Runtime\JsonSerializer::encode($result);
+                $prebuilt = \Nexphant\Server\RawResponse::json($json);
+                $this->exactRoutes[$method][$path]['prebuilt'] = $prebuilt;
+                if (isset($this->fastRoutes[$method][$path])) {
+                    $this->fastRoutes[$method][$path]['prebuilt'] = $prebuilt;
                 }
             }
+        } catch (\Throwable) {
         }
     }
 
