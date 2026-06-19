@@ -43,10 +43,14 @@ class Coroutine
                 $value = $task->run();
 
                 if ($value instanceof Awaitable) {
-                    $value->then(function ($result) use ($task) {
-                        $task->send($result);
-                        self::schedule($task);
-                    });
+                    try {
+                        $value->then(function ($result) use ($task) {
+                            $task->send($result);
+                            self::schedule($task);
+                        });
+                    } catch (\Throwable $e) {
+                        error_log('Awaitable then() error: ' . $e->getMessage());
+                    }
                 } elseif ($value instanceof \Generator) {
                     self::create($value);
                     self::schedule($task);

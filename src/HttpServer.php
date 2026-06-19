@@ -1140,7 +1140,7 @@ class HttpServer
         }
 
         @fseek($fp, $this->webSocketBusOffset);
-        $chunk = stream_get_contents($fp);
+        $chunk = fread($fp, 1048576);
         $this->webSocketBusOffset = (int) ftell($fp);
         @fclose($fp);
 
@@ -1408,7 +1408,7 @@ class HttpServer
         }
 
         @fseek($fp, $this->sseBusOffset);
-        $chunk = stream_get_contents($fp);
+        $chunk = fread($fp, 1048576);
         $this->sseBusOffset = (int) ftell($fp);
         @fclose($fp);
 
@@ -1703,6 +1703,7 @@ class HttpServer
                 $response->notFound();
             }
         } catch (\Throwable $e) {
+            $conn->setKeepAlive(false);
             $lifecycleOwner = $request->getAttribute('__lifecycle_owner');
             if ($lifecycleOwner instanceof \Nexphant\Lifecycle\Owner) {
                 $lifecycleOwner->cancel();

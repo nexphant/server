@@ -238,6 +238,7 @@ class Router
             return;
         }
 
+        $request->clearNonSystemAttributes();
         foreach ($route['params'] as $key => $value) {
             $request->setAttribute($key, $value);
         }
@@ -261,6 +262,7 @@ class Router
             return;
         }
 
+        $request->clearNonSystemAttributes();
         foreach ($route['params'] as $key => $value) {
             $request->setAttribute($key, $value);
         }

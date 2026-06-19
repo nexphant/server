@@ -161,7 +161,8 @@ class Connection
             return -1;
         }
 
-        if ($maxBufferSize > 0 && $this->writeBuffer->length() + strlen($data) > $maxBufferSize) {
+        $limit = $maxBufferSize > 0 ? $maxBufferSize : 1048576;
+        if ($this->writeBuffer->length() + strlen($data) > $limit) {
             return -2;
         }
 

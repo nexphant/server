@@ -153,6 +153,16 @@ class ServerRequest extends \Nexphant\Request
         return $this->attributes;
     }
 
+    public function clearNonSystemAttributes(): void
+    {
+        $systemKeys = ['__lifecycle_owner', '__owner_id', '__runtime_context', '__response_cache_key', '__stream_started', '__id'];
+        foreach (array_keys($this->attributes) as $key) {
+            if (!in_array($key, $systemKeys, true)) {
+                unset($this->attributes[$key]);
+            }
+        }
+    }
+
     public function getConnection(): Connection
     {
         if ($this->connection === null) {

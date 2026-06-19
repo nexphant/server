@@ -75,6 +75,12 @@ class AsyncIO
             return yield $deferred;
         }
 
+        $host = parse_url($url, PHP_URL_HOST);
+        if ($host && self::isPrivateOrLoopbackIP($host)) {
+            $deferred->resolve(['status' => 0, 'headers' => [], 'body' => '', 'error' => 'Private/loopback IPs not allowed']);
+            return yield $deferred;
+        }
+
         self::$loop?->defer(function () use ($method, $url, $options, $deferred) {
             $context = stream_context_create([
                 'http' => [
@@ -158,6 +164,24 @@ class AsyncIO
             }
         }
         return $headers;
+    }
+
+    private static function isPrivateOrLoopbackIP(string $host): bool
+    {
+        $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            return $ip === '::1' || str_starts_with($ip, 'fe80:') || str_starts_with($ip, 'fc00:') || str_starts_with($ip, 'fd00:');
+        }
+        $parts = explode('.', $ip);
+        if (count($parts) !== 4) {
+            return false;
+        }
+        $first = (int) $parts[0];
+        $second = (int) $parts[1];
+        return $first === 127 || $first === 10 || ($first === 172 && $second >= 16 && $second <= 31) || ($first === 192 && $second === 168);
     }
 }
 
