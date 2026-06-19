@@ -94,8 +94,7 @@ class HttpServer
     private bool $draining = false;
     private array $ipConnectCount = [];
     private array $ipConnectTime = [];
-    private int $maxConnectionsPerIp = 100;
-    private int $ipRateWindowSec = 60;
+    private int $maxConnectionsPerIp = 10000;
     private bool $shuttingDown = false;
     private bool $objectTrackingEnabled = false;
     private bool $poolSafetyEnabled = false;
@@ -179,8 +178,7 @@ class HttpServer
         $this->sseTimeout = max(1, (int) ($config['sse_timeout'] ?? 300));
         $this->memoryLimit = $config['memory_limit'] ?? 256 * 1024 * 1024;
         $this->memoryPressureThreshold = min(0.99, max(0.10, (float) ($config['memory_pressure_threshold'] ?? 0.85)));
-        $this->maxConnectionsPerIp = max(1, (int) ($config['max_connections_per_ip'] ?? 100));
-        $this->ipRateWindowSec = max(1, (int) ($config['ip_rate_window_sec'] ?? 60));
+        $this->maxConnectionsPerIp = max(1, (int) ($config['max_connections_per_ip'] ?? 10000));
         $this->memoryHardPressureThreshold = min(0.999, max($this->memoryPressureThreshold, (float) ($config['memory_hard_pressure_threshold'] ?? 0.95)));
         $this->httpRouteLatencySampleLimit = max(0, (int) ($config['http_route_latency_sample_limit'] ?? 0));
         $this->gracefulShutdownTimeout = max(1, (int) ($config['graceful_shutdown_timeout'] ?? 30));
@@ -637,26 +635,24 @@ class HttpServer
             return true;
         }
 
-        $remoteAddr = (string) @stream_socket_get_name($clientSocket, true);
-        $ip = strstr($remoteAddr, ':', true) ?: $remoteAddr;
-        $now = time();
-        if (isset($this->ipConnectTime[$ip]) && ($now - $this->ipConnectTime[$ip]) > $this->ipRateWindowSec) {
-            unset($this->ipConnectCount[$ip], $this->ipConnectTime[$ip]);
+        $remoteAddr = '';
+        if ($clientSocket instanceof \Socket) {
+            @socket_getpeername($clientSocket, $remoteAddr);
+        } else {
+            $remoteAddr = (string) @stream_socket_get_name($clientSocket, true);
         }
+        $ip = strstr($remoteAddr, ':', true) ?: ($remoteAddr ?: '0.0.0.0');
         $this->ipConnectCount[$ip] = ($this->ipConnectCount[$ip] ?? 0) + 1;
-        $this->ipConnectTime[$ip] ??= $now;
         if ($this->ipConnectCount[$ip] > $this->maxConnectionsPerIp) {
-            $response = HttpParser::buildResponse(429, ['Connection' => 'close', 'Retry-After' => (string) $this->ipRateWindowSec], 'Too many connections');
+            $this->ipConnectCount[$ip]--;
+            $response = HttpParser::buildResponse(429, ['Connection' => 'close', 'Retry-After' => '1'], 'Too many connections');
             $this->socketDriver->write($clientSocket, $response);
             $this->socketDriver->close($clientSocket);
             return true;
         }
-        if (count($this->ipConnectCount) > 100000) {
-            $this->ipConnectCount = array_slice($this->ipConnectCount, -50000, null, true);
-            $this->ipConnectTime = array_slice($this->ipConnectTime, -50000, null, true);
-        }
 
         $conn = new Connection($clientSocket, ++$this->connectionId, $this->bufferPool);
+        $this->ipConnectTime[$conn->getId()] = $ip;
         $this->objectTracker->track($conn, 'connection', 'server', '', 'active');
         if ($this->memoryPressureState === 'pressure') {
             $conn->setKeepAlive(false);
@@ -2061,6 +2057,16 @@ class HttpServer
         $conn->close();
         unset($this->connections[$id]);
         $this->objectTracker->release($conn, 'closed');
+        if (isset($this->ipConnectTime[$id])) {
+            $ip = $this->ipConnectTime[$id];
+            unset($this->ipConnectTime[$id]);
+            if (isset($this->ipConnectCount[$ip])) {
+                $this->ipConnectCount[$ip]--;
+                if ($this->ipConnectCount[$ip] <= 0) {
+                    unset($this->ipConnectCount[$ip]);
+                }
+            }
+        }
 
         if ($wasWebSocket) {
             $handler = $this->webSocketHandlers[$webSocketPath] ?? null;

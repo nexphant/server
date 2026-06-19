@@ -23,7 +23,6 @@ class EventLoop
     private array $deferred = [];
     private int $deferredHead = 0;
     private int $deferredCount = 0;
-    private bool $processingDeferred = false;
     private array $signals = [];
     private bool $running = false;
     private int $tickInterval = 1000;
@@ -182,42 +181,41 @@ class EventLoop
 
     private function processDeferredQueue(): void
     {
-        if ($this->processingDeferred || $this->deferredCount === 0) {
-            if (!$this->processingDeferred && $this->backend && $this->deferredTimerId !== null) {
+        if ($this->deferredCount === 0) {
+            if ($this->backend && $this->deferredTimerId !== null) {
                 $this->backend->cancelTimer($this->deferredTimerId);
                 $this->deferredTimerId = null;
             }
             return;
         }
 
-        $this->processingDeferred = true;
-        try {
-            $deferredEnd = $this->deferredHead + min($this->deferredCount, $this->maxDeferredPerTick);
-            $processed = 0;
-            for ($i = $this->deferredHead; $i < $deferredEnd; $i++) {
-                $cb = $this->deferred[$i] ?? null;
-                unset($this->deferred[$i]);
-                $processed++;
-                if ($cb !== null) {
+        $deferredEnd = $this->deferredHead + min($this->deferredCount, $this->maxDeferredPerTick);
+        $processed = 0;
+        for ($i = $this->deferredHead; $i < $deferredEnd; $i++) {
+            $cb = $this->deferred[$i] ?? null;
+            unset($this->deferred[$i]);
+            $processed++;
+            if ($cb !== null) {
+                try {
                     $cb();
+                } catch (\Throwable $e) {
+                    error_log('Deferred error: ' . $e->getMessage());
                 }
             }
-            $this->deferredHead += $processed;
-            $this->deferredCount -= $processed;
+        }
+        $this->deferredHead += $processed;
+        $this->deferredCount -= $processed;
 
-            if ($this->deferredCount === 0) {
-                if ($this->backend && $this->deferredTimerId !== null) {
-                    $this->backend->cancelTimer($this->deferredTimerId);
-                    $this->deferredTimerId = null;
-                }
+        if ($this->deferredCount === 0) {
+            if ($this->backend && $this->deferredTimerId !== null) {
+                $this->backend->cancelTimer($this->deferredTimerId);
+                $this->deferredTimerId = null;
             }
+        }
 
-            if ($this->deferredHead > 64 && $this->deferredHead * 2 >= count($this->deferred) + $this->deferredHead) {
-                $this->deferred = array_values(array_slice($this->deferred, $this->deferredHead, null, true));
-                $this->deferredHead = 0;
-            }
-        } finally {
-            $this->processingDeferred = false;
+        if ($this->deferredHead > 64 && $this->deferredHead * 2 >= count($this->deferred) + $this->deferredHead) {
+            $this->deferred = array_values(array_slice($this->deferred, $this->deferredHead, null, true));
+            $this->deferredHead = 0;
         }
     }
 
