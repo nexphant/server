@@ -38,25 +38,28 @@ class Coroutine
 
     private static function runTask(Task $task): void
     {
-        if (!$task->isFinished()) {
-            $value = $task->run();
+        try {
+            if (!$task->isFinished()) {
+                $value = $task->run();
 
-            if ($value instanceof Awaitable) {
-                $value->then(function ($result) use ($task) {
-                    $task->send($result);
+                if ($value instanceof Awaitable) {
+                    $value->then(function ($result) use ($task) {
+                        $task->send($result);
+                        self::schedule($task);
+                    });
+                } elseif ($value instanceof \Generator) {
+                    self::create($value);
                     self::schedule($task);
-                });
-            } elseif ($value instanceof \Generator) {
-                // Nested coroutine
-                self::create($value);
-                self::schedule($task);
-            } elseif (!$task->isFinished()) {
-                self::schedule($task);
+                } elseif (!$task->isFinished()) {
+                    self::schedule($task);
+                }
             }
-        }
-
-        if ($task->isFinished()) {
-            unset(self::$tasks[$task->getId()]);
+        } catch (\Throwable $e) {
+            error_log('Coroutine error: ' . $e->getMessage());
+        } finally {
+            if ($task->isFinished()) {
+                unset(self::$tasks[$task->getId()]);
+            }
         }
     }
 

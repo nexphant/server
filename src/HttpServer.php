@@ -466,6 +466,10 @@ class HttpServer
             $this->cleanupConnections();
         }, periodic: true);
 
+        $this->loop->addTimer(30.0, function () {
+            gc_collect_cycles();
+        }, periodic: true);
+
         if (!empty($this->webSocketHandlers)) {
             $this->loop->addTimer(5.0, function () {
                 $this->checkWebSocketHeartbeats();
@@ -1736,7 +1740,9 @@ class HttpServer
             if ($lifecycleOwner instanceof \Nexphant\Lifecycle\Owner) {
                 $lifecycleOwner->cancel();
             }
-            throw $e;
+            $this->handleError($e, $response);
+            $this->finishHttpRequest($request, $response);
+            $this->sendResponse($conn, $response);
         }
     }
 
@@ -1833,10 +1839,13 @@ class HttpServer
         $this->httpLatencySumMs += $durationMs;
         $this->httpLatencyMaxMs = max($this->httpLatencyMaxMs, $durationMs);
 
-        // Route counting + normalization (expensive)
         if ($this->routeLatencyEnabled || $this->runtimeSafetyEnabled) {
             $routeKey = $method . ' ' . $this->normalizeMetricPath($path);
             $this->httpRouteCounts[$routeKey] = ($this->httpRouteCounts[$routeKey] ?? 0) + 1;
+            if (count($this->httpRouteCounts) > 10000) {
+                $this->httpRouteCounts = array_slice($this->httpRouteCounts, -5000, null, true);
+                $this->httpRouteLatencySamples = array_intersect_key($this->httpRouteLatencySamples, $this->httpRouteCounts);
+            }
 
             if ($this->routeLatencyEnabled && $this->httpRouteLatencySampleLimit > 0) {
                 $sample = $this->httpRouteLatencySamples[$routeKey] ?? ['values' => [], 'pos' => 0, 'count' => 0];
@@ -2084,7 +2093,7 @@ class HttpServer
             }
         }
 
-        if ($cleaned > 50) {
+        if ($cleaned > 0) {
             gc_collect_cycles();
         }
     }
