@@ -85,6 +85,9 @@ class Router
 
     public function add(string $method, string $path, callable $handler, array $middleware = []): Route
     {
+        if (count($this->routes) >= 10000) {
+            throw new \OverflowException('Router max route limit (10000) reached');
+        }
         $method = strtoupper($method);
         $fullPath = $this->prefix . $path;
 

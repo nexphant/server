@@ -94,13 +94,16 @@ class ObjectPool
 
     private function doReset(object $item): void
     {
-        if ($this->reset) {
-            ($this->reset)($item);
-            return;
-        }
-
-        if ($item instanceof Resettable) {
-            $item->reset();
+        try {
+            if ($this->reset) {
+                ($this->reset)($item);
+                return;
+            }
+            if ($item instanceof Resettable) {
+                $item->reset();
+            }
+        } catch (\Throwable $e) {
+            error_log('ObjectPool reset error: ' . $e->getMessage());
         }
     }
 
