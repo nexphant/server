@@ -99,6 +99,9 @@ class HttpServer
     private bool $objectTrackingEnabled = false;
     private bool $poolSafetyEnabled = false;
     private bool $hotPathCacheEnabled = false;
+    private bool $runtimeAvailable = false;
+    private bool $lifecycleAvailable = false;
+    private bool $drainAvailable = false;
     private bool $runtimeSafetyEnabled = true;
     private bool $routeLatencyEnabled = false;
     private bool $histogramEnabled = true;
@@ -157,11 +160,11 @@ class HttpServer
         $this->config = $config;
         $this->host = $config['host'] ?? '0.0.0.0';
         $this->port = $config['port'] ?? 8080;
-        $this->maxConnections = $config['max_connections'] ?? 500;
-        $this->maxAcceptPerTick = $config['max_accept_per_tick'] ?? 32;
+        $this->maxConnections = $config['max_connections'] ?? 10000;
+        $this->maxAcceptPerTick = $config['max_accept_per_tick'] ?? 256;
         $this->quiet = $config['quiet'] ?? false;
-        $this->keepAliveTimeout = $config['keep_alive_timeout'] ?? 2;
-        $this->maxRequestsPerConnection = $config['max_requests'] ?? 100;
+        $this->keepAliveTimeout = $config['keep_alive_timeout'] ?? 30;
+        $this->maxRequestsPerConnection = $config['max_requests'] ?? 10000;
         $this->maxRequestSize = $config['max_request_size'] ?? 10 * 1024 * 1024;
         $this->maxWriteBufferSize = $config['max_write_buffer_size'] ?? 1024 * 1024;
         $this->webSocketTimeout = $config['websocket_timeout'] ?? 300;
@@ -201,13 +204,16 @@ class HttpServer
         $this->objectTrackingEnabled = (bool) ($config['object_tracking'] ?? false);
         $this->poolSafetyEnabled = (bool) ($config['pool_safety'] ?? false);
         $this->hotPathCacheEnabled = (float) ($config['hot_path_cache_ttl'] ?? 0.0) > 0.0;
+        $this->runtimeAvailable = class_exists('\Nexphant\Runtime\Runtime') && \Nexphant\Runtime\Runtime::available();
+        $this->lifecycleAvailable = $this->runtimeSafetyEnabled && class_exists('\Nexphant\Lifecycle\Lifecycle');
+        $this->drainAvailable = class_exists('\Nexphant\Core\Drain\DrainController');
         $this->runtimeSafetyEnabled = (bool) ($config['runtime_safety'] ?? !($config['performance_mode'] ?? false));
         if (isset($config['runtime_discipline'])) {
             $this->runtimeSafetyEnabled = (bool) $config['runtime_discipline'];
         }
         $this->routeLatencyEnabled = $this->runtimeSafetyEnabled && (bool) ($config['route_latency'] ?? true);
         $this->histogramEnabled = $this->runtimeSafetyEnabled && (bool) ($config['histogram'] ?? true);
-        $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 1 : 100)));
+        $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 10 : 100)));
 
         $backend = \Nexphant\Runtime\EventLoop\EventLoopFactory::create($config['event_loop'] ?? 'auto');
         // $backendName = (new \ReflectionClass($backend))->getShortName();
@@ -216,11 +222,11 @@ class HttpServer
         // }
 
         $this->loop = new EventLoop($backend);
-        $this->loop->setMaxDeferred((int) ($config['max_deferred'] ?? 100000));
+        $this->loop->setMaxDeferred((int) ($config['max_deferred'] ?? 500000));
         $this->loop->setFairnessLimits(
-            (int) ($config['max_read_callbacks_per_tick'] ?? 512),
-            (int) ($config['max_write_callbacks_per_tick'] ?? 512),
-            (int) ($config['max_deferred_per_tick'] ?? 512)
+            (int) ($config['max_read_callbacks_per_tick'] ?? 4096),
+            (int) ($config['max_write_callbacks_per_tick'] ?? 4096),
+            (int) ($config['max_deferred_per_tick'] ?? 4096)
         );
         $this->memoryMonitor = new MemoryMonitor();
         $this->objectTracker = new ObjectTracker($this->objectTrackingEnabled);
@@ -1819,11 +1825,11 @@ class HttpServer
         }
 
         // Close request owner
-        if (class_exists('\Nexphant\Runtime\Runtime') && \Nexphant\Runtime\Runtime::available()) {
+        if ($this->runtimeAvailable) {
             $ownerId = $request->getAttribute('__owner_id');
             if ($ownerId) {
                 // Finish in-flight tracking
-                if (class_exists('\Nexphant\Core\Drain\DrainController')) {
+                if ($this->drainAvailable) {
                     \Nexphant\Core\Drain\DrainController::instance()->finishInFlight($ownerId);
                 }
                 \Nexphant\Runtime\Runtime::owners()->close($ownerId, 'request_completed');
@@ -1972,14 +1978,14 @@ class HttpServer
         /** @var ServerRequest $request */
         $request = $this->requestPool->acquire('http', 'conn:' . $conn->getId());
         $request->hydrate($parsed, $conn);
-        if ($this->runtimeSafetyEnabled && class_exists('\Nexphant\Lifecycle\Lifecycle')) {
+        if ($this->lifecycleAvailable) {
             $lifecycleOwner = \Nexphant\Lifecycle\Lifecycle::request();
             $lifecycleOwner->own($request);
             $request->setAttribute('__lifecycle_owner', $lifecycleOwner);
         }
 
         // Track request with owner type 'request'
-        if (class_exists('\Nexphant\Runtime\Runtime') && \Nexphant\Runtime\Runtime::available()) {
+        if ($this->runtimeAvailable) {
             $owner = \Nexphant\Runtime\Runtime::owners()->open(
                 \Nexphant\Core\Ownership\OwnerType::REQUEST,
                 null,
@@ -1988,7 +1994,7 @@ class HttpServer
             $request->setAttribute('__owner_id', $owner->id()->toString());
 
             // Track in-flight
-            if (class_exists('\Nexphant\Core\Drain\DrainController')) {
+            if ($this->drainAvailable) {
                 \Nexphant\Core\Drain\DrainController::instance()->trackInFlight($owner->id());
             }
 
@@ -2125,7 +2131,7 @@ class HttpServer
             }
         }
 
-        if ($cleaned > 0) {
+        if ($cleaned >= 100) {
             gc_collect_cycles();
         }
     }
@@ -3046,11 +3052,20 @@ class HttpServer
         ];
     }
 
+    private array $normalizePathCache = [];
+
     private function normalizeMetricPath(string $path): string
     {
-        $path = preg_replace('#/\d+(?=/|$)#', '/{id}', $path) ?? $path;
-        $path = preg_replace('#/[0-9a-fA-F-]{16,}(?=/|$)#', '/{id}', $path) ?? $path;
-        return $path === '' ? '/' : $path;
+        if (isset($this->normalizePathCache[$path])) {
+            return $this->normalizePathCache[$path];
+        }
+        $normalized = preg_replace('#/\d+(?=/|$)#', '/{id}', $path) ?? $path;
+        $normalized = preg_replace('#/[0-9a-fA-F-]{16,}(?=/|$)#', '/{id}', $normalized) ?? $normalized;
+        $result = $normalized === '' ? '/' : $normalized;
+        if (count($this->normalizePathCache) < 5000) {
+            $this->normalizePathCache[$path] = $result;
+        }
+        return $result;
     }
 
     private function aggregateMemoryTrend(array $workers): string

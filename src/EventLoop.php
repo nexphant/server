@@ -214,7 +214,7 @@ class EventLoop
             }
         }
 
-        if ($this->deferredHead > 64 && $this->deferredHead * 2 >= count($this->deferred) + $this->deferredHead) {
+        if ($this->deferredHead > 1024 && $this->deferredHead * 2 >= count($this->deferred) + $this->deferredHead) {
             $this->deferred = array_values(array_slice($this->deferred, $this->deferredHead, null, true));
             $this->deferredHead = 0;
         }
