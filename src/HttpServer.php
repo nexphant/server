@@ -108,6 +108,7 @@ class HttpServer
     private int $metricsSampleRate = 1;
     private int $metricsSampleCounter = 0;
     private float $drainStartedAt = 0.0;
+    private array $adaptiveScale = [];
 
     // Stats
     private int $totalRequests = 0;
@@ -158,6 +159,11 @@ class HttpServer
     public function __construct(array $config = [])
     {
         $this->config = $config;
+        
+        // Adaptive memory-based scaling
+        $memoryLimitBytes = $this->parseMemoryLimit(ini_get('memory_limit'));
+        $this->adaptiveScale = $this->calculateAdaptiveScale($memoryLimitBytes);
+        
         $this->host = $config['host'] ?? '0.0.0.0';
         $this->port = $config['port'] ?? 8080;
         $this->maxConnections = $config['max_connections'] ?? 10000;
@@ -180,9 +186,9 @@ class HttpServer
         $this->sseHeartbeatInterval = max(0, (int) ($config['sse_heartbeat_interval'] ?? 15));
         $this->sseTimeout = max(1, (int) ($config['sse_timeout'] ?? 300));
         $this->memoryLimit = $config['memory_limit'] ?? 256 * 1024 * 1024;
-        $this->memoryPressureThreshold = min(0.99, max(0.10, (float) ($config['memory_pressure_threshold'] ?? 0.85)));
+        $this->memoryPressureThreshold = min(0.99, max(0.10, (float) ($config['memory_pressure_threshold'] ?? ($this->adaptiveScale['pressure_threshold'] ?? 0.85))));
         $this->maxConnectionsPerIp = max(1, (int) ($config['max_connections_per_ip'] ?? 10000));
-        $this->memoryHardPressureThreshold = min(0.999, max($this->memoryPressureThreshold, (float) ($config['memory_hard_pressure_threshold'] ?? 0.95)));
+        $this->memoryHardPressureThreshold = min(0.999, max($this->memoryPressureThreshold, (float) ($config['memory_hard_pressure_threshold'] ?? ($this->adaptiveScale['hard_pressure_threshold'] ?? 0.95))));
         $this->httpRouteLatencySampleLimit = max(0, (int) ($config['http_route_latency_sample_limit'] ?? 0));
         $this->gracefulShutdownTimeout = max(1, (int) ($config['graceful_shutdown_timeout'] ?? 30));
         $this->backlog = $config['backlog'] ?? 4096;
@@ -199,7 +205,7 @@ class HttpServer
         $this->sseBusSingleWorker = (bool) ($config['sse_bus_single_worker'] ?? false);
         $this->sseBusMaxBytes = max(65536, (int) ($config['sse_bus_max_bytes'] ?? $this->webSocketBusMaxBytes));
         $this->sseAuthToken = (string) ($config['sse_auth_token'] ?? '');
-        $this->sseReplayLimit = max(0, (int) ($config['sse_replay_limit'] ?? 1024));
+        $this->sseReplayLimit = max(0, (int) ($config['sse_replay_limit'] ?? ($this->adaptiveScale['replay_limit'] ?? 1024)));
         $this->debug = $config['debug'] ?? false;
         $this->objectTrackingEnabled = (bool) ($config['object_tracking'] ?? false);
         $this->poolSafetyEnabled = (bool) ($config['pool_safety'] ?? false);
@@ -216,10 +222,6 @@ class HttpServer
         $this->metricsSampleRate = max(1, (int) ($config['metrics_sample_rate'] ?? ($this->runtimeSafetyEnabled ? 10 : 100)));
 
         $backend = \Nexphant\Runtime\EventLoop\EventLoopFactory::create($config['event_loop'] ?? 'auto');
-        // $backendName = (new \ReflectionClass($backend))->getShortName();
-        // if (!($config['quiet'] ?? false) && ($config['worker_id'] ?? 1) === 1) {
-        //     error_log("Event Loop: $backendName");
-        // }
 
         $this->loop = new EventLoop($backend);
         $this->loop->setMaxDeferred((int) ($config['max_deferred'] ?? 500000));
@@ -232,7 +234,7 @@ class HttpServer
         $this->objectTracker = new ObjectTracker($this->objectTrackingEnabled);
         $this->responsePool = new ObjectPool(
             fn() => new Response(),
-            $config['response_pool_size'] ?? 2048,
+            $config['response_pool_size'] ?? ($this->adaptiveScale['response_pool'] ?? 2048),
             fn(Response $response) => $response->reset(),
             'response',
             $this->objectTracker,
@@ -240,14 +242,14 @@ class HttpServer
         );
         $this->requestPool = new ObjectPool(
             fn() => new Request(),
-            $config['request_pool_size'] ?? 2048,
+            $config['request_pool_size'] ?? ($this->adaptiveScale['request_pool'] ?? 2048),
             fn(Request $request) => $request->reset(),
             'request',
             $this->objectTracker,
             $this->poolSafetyEnabled
         );
         $this->bufferPool = new BufferPool(
-            $config['buffer_pool_size'] ?? 4096,
+            $config['buffer_pool_size'] ?? ($this->adaptiveScale['buffer_pool'] ?? 4096),
             $this->objectTracker,
             $this->poolSafetyEnabled
         );
@@ -476,7 +478,7 @@ class HttpServer
             $this->cleanupConnections();
         }, periodic: true);
 
-        $this->loop->addTimer(10.0, function () {
+        $this->loop->addTimer((float) ($this->adaptiveScale['gc_interval'] ?? 10), function () {
             gc_collect_cycles();
         }, periodic: true);
 
@@ -1874,8 +1876,9 @@ class HttpServer
         if ($this->routeLatencyEnabled || $this->runtimeSafetyEnabled) {
             $routeKey = $method . ' ' . $this->normalizeMetricPath($path);
             $this->httpRouteCounts[$routeKey] = ($this->httpRouteCounts[$routeKey] ?? 0) + 1;
-            if (count($this->httpRouteCounts) > 2000) {
-                $this->httpRouteCounts = array_slice($this->httpRouteCounts, -1000, null, true);
+            $metricsLimit = $this->adaptiveScale['metrics_limit'] ?? 2000;
+            if (count($this->httpRouteCounts) > $metricsLimit) {
+                $this->httpRouteCounts = array_slice($this->httpRouteCounts, -(int)($metricsLimit / 2), null, true);
                 $this->httpRouteLatencySamples = array_intersect_key($this->httpRouteLatencySamples, $this->httpRouteCounts);
             }
 
@@ -3267,5 +3270,95 @@ class HttpServer
         if (count($this->sseReplayBuffer) > $this->sseReplayLimit) {
             $this->sseReplayBuffer = array_slice($this->sseReplayBuffer, -$this->sseReplayLimit, null, true);
         }
+    }
+
+    private function parseMemoryLimit(string $limit): int
+    {
+        if ($limit === '-1') {
+            return -1;
+        }
+
+        $limit = trim($limit);
+        $last = strtolower($limit[strlen($limit) - 1] ?? '');
+        $value = (int) $limit;
+
+        switch ($last) {
+            case 'g':
+                $value *= 1024;
+            case 'm':
+                $value *= 1024;
+            case 'k':
+                $value *= 1024;
+        }
+
+        return $value;
+    }
+
+    private function calculateAdaptiveScale(int $memoryLimitBytes): array
+    {
+        if ($memoryLimitBytes === -1) {
+            return [
+                'buffer_pool' => 4096,
+                'request_pool' => 2048,
+                'response_pool' => 2048,
+                'pressure_threshold' => 0.85,
+                'hard_pressure_threshold' => 0.95,
+                'replay_limit' => 1024,
+                'gc_interval' => 30,
+                'metrics_limit' => 2000,
+            ];
+        }
+
+        $memoryMB = $memoryLimitBytes / (1024 * 1024);
+
+        if ($memoryMB <= 128) {
+            return [
+                'buffer_pool' => 512,
+                'request_pool' => 256,
+                'response_pool' => 256,
+                'pressure_threshold' => 0.60,
+                'hard_pressure_threshold' => 0.75,
+                'replay_limit' => 128,
+                'gc_interval' => 5,
+                'metrics_limit' => 200,
+            ];
+        }
+
+        if ($memoryMB <= 256) {
+            return [
+                'buffer_pool' => 1024,
+                'request_pool' => 512,
+                'response_pool' => 512,
+                'pressure_threshold' => 0.65,
+                'hard_pressure_threshold' => 0.80,
+                'replay_limit' => 256,
+                'gc_interval' => 8,
+                'metrics_limit' => 500,
+            ];
+        }
+
+        if ($memoryMB <= 512) {
+            return [
+                'buffer_pool' => 2048,
+                'request_pool' => 1024,
+                'response_pool' => 1024,
+                'pressure_threshold' => 0.70,
+                'hard_pressure_threshold' => 0.85,
+                'replay_limit' => 512,
+                'gc_interval' => 10,
+                'metrics_limit' => 1000,
+            ];
+        }
+
+        return [
+            'buffer_pool' => 4096,
+            'request_pool' => 2048,
+            'response_pool' => 2048,
+            'pressure_threshold' => 0.75,
+            'hard_pressure_threshold' => 0.90,
+            'replay_limit' => 1024,
+            'gc_interval' => 15,
+            'metrics_limit' => 2000,
+        ];
     }
 }
