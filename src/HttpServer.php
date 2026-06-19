@@ -476,7 +476,7 @@ class HttpServer
             $this->cleanupConnections();
         }, periodic: true);
 
-        $this->loop->addTimer(30.0, function () {
+        $this->loop->addTimer(10.0, function () {
             gc_collect_cycles();
         }, periodic: true);
 
@@ -570,6 +570,10 @@ class HttpServer
                 }
             }
             $this->objectTracker->cleanupContexts();
+            $this->cleanupMetrics();
+            if (class_exists('\Nexphant\Runtime\ResponseCache')) {
+                \Nexphant\Runtime\ResponseCache::cleanup();
+            }
         }, periodic: true);
 
         if ($this->debug) {
@@ -1206,8 +1210,8 @@ class HttpServer
     private function rememberWebSocketEvent(string $eventId): void
     {
         $this->webSocketSeenEvents[$eventId] = true;
-        if (count($this->webSocketSeenEvents) > 4096) {
-            $this->webSocketSeenEvents = array_slice($this->webSocketSeenEvents, -2048, null, true);
+        if (count($this->webSocketSeenEvents) > 1024) {
+            $this->webSocketSeenEvents = array_slice($this->webSocketSeenEvents, -512, null, true);
         }
     }
 
@@ -1870,8 +1874,8 @@ class HttpServer
         if ($this->routeLatencyEnabled || $this->runtimeSafetyEnabled) {
             $routeKey = $method . ' ' . $this->normalizeMetricPath($path);
             $this->httpRouteCounts[$routeKey] = ($this->httpRouteCounts[$routeKey] ?? 0) + 1;
-            if (count($this->httpRouteCounts) > 10000) {
-                $this->httpRouteCounts = array_slice($this->httpRouteCounts, -5000, null, true);
+            if (count($this->httpRouteCounts) > 2000) {
+                $this->httpRouteCounts = array_slice($this->httpRouteCounts, -1000, null, true);
                 $this->httpRouteLatencySamples = array_intersect_key($this->httpRouteLatencySamples, $this->httpRouteCounts);
             }
 
@@ -2131,7 +2135,7 @@ class HttpServer
             }
         }
 
-        if ($cleaned >= 100) {
+        if ($cleaned >= 50) {
             gc_collect_cycles();
         }
     }
@@ -3243,5 +3247,25 @@ class HttpServer
         $this->fastPath->register($method, $path, $raw);
         $this->fastEngine->register($method, $path, $raw);
         return $this;
+    }
+
+    private function cleanupMetrics(): void
+    {
+        // Cleanup IP tracking map - remove entries with 0 connections
+        foreach ($this->ipConnectCount as $ip => $count) {
+            if ($count <= 0) {
+                unset($this->ipConnectCount[$ip]);
+            }
+        }
+
+        // Cleanup SSE seen events if too large
+        if (count($this->sseSeenEvents) > 1024) {
+            $this->sseSeenEvents = array_slice($this->sseSeenEvents, -512, null, true);
+        }
+
+        // Trim SSE replay buffer
+        if (count($this->sseReplayBuffer) > $this->sseReplayLimit) {
+            $this->sseReplayBuffer = array_slice($this->sseReplayBuffer, -$this->sseReplayLimit, null, true);
+        }
     }
 }

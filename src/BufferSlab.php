@@ -22,13 +22,17 @@ class BufferSlab implements Resettable, Cleanable {
 
     public function consume(int $length): void {
         $this->offset += $length;
-        if ($this->offset > 8192) {
+        if ($this->offset > 1024) {
             $this->data = substr($this->data, $this->offset);
             $this->offset = 0;
         }
     }
 
     public function reset(): void {
+        if ($this->offset > 0 && $this->data !== '') {
+            $this->data = substr($this->data, $this->offset);
+            $this->offset = 0;
+        }
         $this->data = '';
         $this->offset = 0;
         $this->peakBytes = 0;
