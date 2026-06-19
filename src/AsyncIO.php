@@ -25,14 +25,19 @@ class AsyncIO
     {
         $deferred = new Deferred();
 
-        if (!file_exists($path)) {
+        $realPath = realpath($path);
+        if ($realPath === false || str_contains($path, '..') || str_contains($path, "\0")) {
             $deferred->resolve(null);
             return yield $deferred;
         }
 
-        // Non-blocking file read simulation
-        self::$loop?->defer(function () use ($path, $deferred) {
-            $content = @file_get_contents($path);
+        if (!file_exists($realPath)) {
+            $deferred->resolve(null);
+            return yield $deferred;
+        }
+
+        self::$loop?->defer(function () use ($realPath, $deferred) {
+            $content = @file_get_contents($realPath);
             $deferred->resolve($content !== false ? $content : null);
         });
 
@@ -42,6 +47,11 @@ class AsyncIO
     public static function writeFile(string $path, string $content): \Generator
     {
         $deferred = new Deferred();
+
+        if (str_contains($path, '..') || str_contains($path, "\0")) {
+            $deferred->resolve(false);
+            return yield $deferred;
+        }
 
         self::$loop?->defer(function () use ($path, $content, $deferred) {
             $dir = dirname($path);

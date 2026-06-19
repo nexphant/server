@@ -74,7 +74,11 @@ class HttpParser
         $contentType = '';
         $cookie = '';
         $pos = $lineEnd + 2;
+        $headerCount = 0;
         while ($pos < $headerEnd) {
+            if (++$headerCount > 100) {
+                return null;
+            }
             $next = strpos($raw, "\r\n", $pos);
             if ($next === false) {
                 $next = $headerEnd;

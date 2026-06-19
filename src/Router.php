@@ -193,22 +193,24 @@ class Router
         $this->compile();
 
         if (isset($this->compiledRegex[$method])) {
-            if (preg_match($this->compiledRegex[$method], $path, $matches)) {
-                $mark = $matches['MARK'];
-                $route = $this->compiledHandlers[$method][(int) $mark];
-                $params = [];
-                foreach ($route['paramNames'] as $name) {
-                    if (isset($matches[$name]) && $matches[$name] !== '') {
-                        $params[$name] = $matches[$name];
+            foreach ($this->compiledRegex[$method] as $regex) {
+                if (preg_match($regex, $path, $matches)) {
+                    $mark = $matches['MARK'];
+                    $route = $this->compiledHandlers[$method][(int) $mark];
+                    $params = [];
+                    foreach ($route['paramNames'] as $unique => $name) {
+                        if (isset($matches[$unique]) && $matches[$unique] !== '') {
+                            $params[$name] = $matches[$unique];
+                        }
                     }
+                    return [
+                        'handler' => $route['handler'],
+                        'middleware' => $route['middleware'],
+                        'params' => $params,
+                        'fast' => false,
+                        'cache_json' => false,
+                    ];
                 }
-                return [
-                    'handler' => $route['handler'],
-                    'middleware' => $route['middleware'],
-                    'params' => $params,
-                    'fast' => false,
-                    'cache_json' => false,
-                ];
             }
         }
 
@@ -305,22 +307,30 @@ class Router
         }
 
         foreach ($grouped as $method => $routes) {
-            $patterns = [];
-            foreach ($routes as $idx => $route) {
-                $paramNames = [];
-                $pattern = preg_replace_callback('/\{(\w+)\??\}/', function ($m) use (&$paramNames) {
-                    $paramNames[] = $m[1];
-                    return "(?P<{$m[1]}>[^/]+)";
-                }, $route['path']);
+            $chunks = array_chunk($routes, 50, true);
+            $this->compiledRegex[$method] = [];
+            $this->compiledHandlers[$method] = [];
 
-                $this->compiledHandlers[$method][$idx] = [
-                    'handler' => $route['handler'],
-                    'middleware' => $route['middleware'],
-                    'paramNames' => $paramNames,
-                ];
-                $patterns[] = "(?:{$pattern}(*MARK:{$idx}))";
+            foreach ($chunks as $chunkRoutes) {
+                $patterns = [];
+                foreach ($chunkRoutes as $idx => $route) {
+                    $paramNames = [];
+                    $i = 0;
+                    $pattern = preg_replace_callback('/\{(\w+)\??\}/', function ($m) use (&$paramNames, $method, $idx, &$i) {
+                        $unique = 'p' . $idx . '_' . ($i++);
+                        $paramNames[$unique] = $m[1];
+                        return "(?P<{$unique}>[^/]+)";
+                    }, $route['path']);
+
+                    $this->compiledHandlers[$method][$idx] = [
+                        'handler' => $route['handler'],
+                        'middleware' => $route['middleware'],
+                        'paramNames' => $paramNames,
+                    ];
+                    $patterns[] = "(?:{$pattern}(*MARK:{$idx}))";
+                }
+                $this->compiledRegex[$method][] = '#^(?:' . implode('|', $patterns) . ')$#';
             }
-            $this->compiledRegex[$method] = '#^(?J)(?:' . implode('|', $patterns) . ')$#';
         }
     }
 
