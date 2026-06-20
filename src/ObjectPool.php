@@ -16,6 +16,7 @@ class ObjectPool
     private array $items = [];
     private \WeakMap $known;
     private \WeakMap $borrowed;
+    private array $itemTimestamps = [];
     private int $created = 0;
     private int $reused = 0;
     private int $released = 0;
@@ -84,6 +85,7 @@ class ObjectPool
         }
 
         $this->items[] = $item;
+        $this->itemTimestamps[spl_object_id($item)] = time();
         $this->released++;
         $this->tracker?->update($item, [
             'owner' => $this->name,
@@ -105,6 +107,40 @@ class ObjectPool
         } catch (\Throwable $e) {
             error_log('ObjectPool reset error: ' . $e->getMessage());
         }
+    }
+
+    public function cleanup(int $maxIdleTimeSec = 30): int
+    {
+        $now = time();
+        $removed = 0;
+        $keep = [];
+        
+        foreach ($this->items as $item) {
+            $id = spl_object_id($item);
+            
+            if (isset($this->itemTimestamps[$id])) {
+                $age = $now - $this->itemTimestamps[$id];
+                
+                if ($age < $maxIdleTimeSec) {
+                    $keep[] = $item;
+                } else {
+                    unset($this->itemTimestamps[$id]);
+                    $this->tracker?->release($item, 'expired');
+                    unset($item);
+                    $removed++;
+                }
+            } else {
+                $keep[] = $item;
+            }
+        }
+        
+        $this->items = $keep;
+        
+        if ($removed > 0) {
+            $this->dropped += $removed;
+        }
+        
+        return $removed;
     }
 
     public function stats(): array

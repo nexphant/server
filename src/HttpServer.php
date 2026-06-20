@@ -480,6 +480,7 @@ class HttpServer
 
         $this->loop->addTimer((float) ($this->adaptiveScale['gc_interval'] ?? 10), function () {
             gc_collect_cycles();
+            gc_mem_caches();
         }, periodic: true);
 
         if (!empty($this->webSocketHandlers)) {
@@ -2140,6 +2141,7 @@ class HttpServer
 
         if ($cleaned >= 50) {
             gc_collect_cycles();
+            gc_mem_caches();
         }
     }
 
@@ -2165,6 +2167,7 @@ class HttpServer
         }
 
         gc_collect_cycles();
+        gc_mem_caches();
         if ($state === 'hard') {
             $this->pauseAccepting();
             $this->closeIdlePressureConnections();
@@ -3313,40 +3316,46 @@ class HttpServer
 
         if ($memoryMB <= 128) {
             return [
-                'buffer_pool' => 512,
-                'request_pool' => 256,
-                'response_pool' => 256,
-                'pressure_threshold' => 0.60,
-                'hard_pressure_threshold' => 0.75,
-                'replay_limit' => 128,
-                'gc_interval' => 5,
-                'metrics_limit' => 200,
+                'buffer_pool' => 64,
+                'request_pool' => 64,
+                'response_pool' => 64,
+                'pressure_threshold' => 0.50,
+                'hard_pressure_threshold' => 0.65,
+                'replay_limit' => 64,
+                'gc_interval' => 3,
+                'metrics_limit' => 100,
+                'idle_cleanup_interval' => 10,
+                'idle_connection_timeout' => 15,
             ];
         }
 
         if ($memoryMB <= 256) {
             return [
-                'buffer_pool' => 1024,
-                'request_pool' => 512,
-                'response_pool' => 512,
-                'pressure_threshold' => 0.65,
-                'hard_pressure_threshold' => 0.80,
-                'replay_limit' => 256,
-                'gc_interval' => 8,
-                'metrics_limit' => 500,
+                'buffer_pool' => 128,
+                'request_pool' => 128,
+                'response_pool' => 128,
+                'pressure_threshold' => 0.55,
+                'hard_pressure_threshold' => 0.70,
+                'replay_limit' => 128,
+                'gc_interval' => 4,
+                'metrics_limit' => 300,
+                'idle_cleanup_interval' => 15,
+                'idle_connection_timeout' => 20,
             ];
         }
 
         if ($memoryMB <= 512) {
             return [
-                'buffer_pool' => 2048,
-                'request_pool' => 1024,
-                'response_pool' => 1024,
-                'pressure_threshold' => 0.70,
-                'hard_pressure_threshold' => 0.85,
-                'replay_limit' => 512,
-                'gc_interval' => 10,
-                'metrics_limit' => 1000,
+                'buffer_pool' => 256,
+                'request_pool' => 256,
+                'response_pool' => 256,
+                'pressure_threshold' => 0.60,
+                'hard_pressure_threshold' => 0.75,
+                'replay_limit' => 256,
+                'gc_interval' => 5,
+                'metrics_limit' => 500,
+                'idle_cleanup_interval' => 20,
+                'idle_connection_timeout' => 30,
             ];
         }
 

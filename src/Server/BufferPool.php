@@ -34,6 +34,11 @@ class BufferPool {
         $this->pool->release($buffer);
     }
 
+    public function cleanup(int $maxIdleTimeSec = 30): int
+    {
+        return $this->pool->cleanup($maxIdleTimeSec);
+    }
+
     public function stats(): array {
         return $this->pool->stats();
     }
