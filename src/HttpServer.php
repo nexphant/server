@@ -3358,6 +3358,66 @@ class HttpServer
                 'idle_connection_timeout' => 30,
             ];
         }
+        
+        if ($memoryMB <= 1024) {
+            return [
+                'buffer_pool' => 512,
+                'request_pool' => 512,
+                'response_pool' => 512,
+                'pressure_threshold' => 0.65,
+                'hard_pressure_threshold' => 0.80,
+                'replay_limit' => 384,
+                'gc_interval' => 8,
+                'metrics_limit' => 1000,
+                'idle_cleanup_interval' => 30,
+                'idle_connection_timeout' => 60,
+            ];
+        }
+        
+        if ($memoryMB <= 2048) {
+            return [
+                'buffer_pool' => 1024,
+                'request_pool' => 1024,
+                'response_pool' => 1024,
+                'pressure_threshold' => 0.68,
+                'hard_pressure_threshold' => 0.82,
+                'replay_limit' => 512,
+                'gc_interval' => 10,
+                'metrics_limit' => 1500,
+                'idle_cleanup_interval' => 40,
+                'idle_connection_timeout' => 90,
+            ];
+        }
+        
+        if ($memoryMB <= 4096) {
+            return [
+                'buffer_pool' => 2048,
+                'request_pool' => 1536,
+                'response_pool' => 1536,
+                'pressure_threshold' => 0.70,
+                'hard_pressure_threshold' => 0.85,
+                'replay_limit' => 768,
+                'gc_interval' => 12,
+                'metrics_limit' => 2000,
+                'idle_cleanup_interval' => 50,
+                'idle_connection_timeout' => 120,
+            ];
+        }
+        
+        if ($memoryMB <= 8192) {
+            return [
+                'buffer_pool' => 3072,
+                'request_pool' => 2048,
+                'response_pool' => 2048,
+                'pressure_threshold' => 0.72,
+                'hard_pressure_threshold' => 0.88,
+                'replay_limit' => 1024,
+                'gc_interval' => 15,
+                'metrics_limit' => 2000,
+                'idle_cleanup_interval' => 60,
+                'idle_connection_timeout' => 150,
+            ];
+        }
 
         return [
             'buffer_pool' => 4096,
