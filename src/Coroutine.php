@@ -61,7 +61,11 @@ class Coroutine
         } catch (\Throwable $e) {
             error_log('Coroutine error: ' . $e->getMessage());
         } finally {
-            if ($task->isFinished()) {
+            try {
+                if ($task->isFinished()) {
+                    unset(self::$tasks[$task->getId()]);
+                }
+            } catch (\Throwable $e) {
                 unset(self::$tasks[$task->getId()]);
             }
         }
