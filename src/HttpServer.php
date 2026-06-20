@@ -3310,124 +3310,39 @@ class HttpServer
             $effectiveLimit = min($memoryLimitBytes, (int)($systemMemory * 0.8));
         }
         
-        $memoryMB = $effectiveLimit / (1024 * 1024);
-
-        if ($memoryMB <= 128) {
-            return [
-                'buffer_pool' => 64,
-                'request_pool' => 64,
-                'response_pool' => 64,
-                'pressure_threshold' => 0.50,
-                'hard_pressure_threshold' => 0.65,
-                'replay_limit' => 64,
-                'gc_interval' => 3,
-                'metrics_limit' => 100,
-                'idle_cleanup_interval' => 10,
-                'idle_connection_timeout' => 15,
-            ];
-        }
-
-        if ($memoryMB <= 256) {
-            return [
-                'buffer_pool' => 128,
-                'request_pool' => 128,
-                'response_pool' => 128,
-                'pressure_threshold' => 0.55,
-                'hard_pressure_threshold' => 0.70,
-                'replay_limit' => 128,
-                'gc_interval' => 4,
-                'metrics_limit' => 300,
-                'idle_cleanup_interval' => 15,
-                'idle_connection_timeout' => 20,
-            ];
-        }
-
-        if ($memoryMB <= 512) {
-            return [
-                'buffer_pool' => 256,
-                'request_pool' => 256,
-                'response_pool' => 256,
-                'pressure_threshold' => 0.60,
-                'hard_pressure_threshold' => 0.75,
-                'replay_limit' => 256,
-                'gc_interval' => 5,
-                'metrics_limit' => 500,
-                'idle_cleanup_interval' => 20,
-                'idle_connection_timeout' => 30,
-            ];
-        }
+        $memoryGB = $effectiveLimit / (1024 * 1024 * 1024);
         
-        if ($memoryMB <= 1024) {
-            return [
-                'buffer_pool' => 512,
-                'request_pool' => 512,
-                'response_pool' => 512,
-                'pressure_threshold' => 0.65,
-                'hard_pressure_threshold' => 0.80,
-                'replay_limit' => 384,
-                'gc_interval' => 8,
-                'metrics_limit' => 1000,
-                'idle_cleanup_interval' => 30,
-                'idle_connection_timeout' => 60,
-            ];
-        }
+        // Formula-based scaling: logarithmic growth
+        $logGB = max(0, log($memoryGB, 2));
         
-        if ($memoryMB <= 2048) {
-            return [
-                'buffer_pool' => 1024,
-                'request_pool' => 1024,
-                'response_pool' => 1024,
-                'pressure_threshold' => 0.68,
-                'hard_pressure_threshold' => 0.82,
-                'replay_limit' => 512,
-                'gc_interval' => 10,
-                'metrics_limit' => 1500,
-                'idle_cleanup_interval' => 40,
-                'idle_connection_timeout' => 90,
-            ];
-        }
+        $bufferPool = (int)min(8192, max(64, 64 * pow(2, $logGB)));
+        $requestPool = (int)min(4096, $bufferPool * 0.5);
+        $responsePool = $requestPool;
         
-        if ($memoryMB <= 4096) {
-            return [
-                'buffer_pool' => 2048,
-                'request_pool' => 1536,
-                'response_pool' => 1536,
-                'pressure_threshold' => 0.70,
-                'hard_pressure_threshold' => 0.85,
-                'replay_limit' => 768,
-                'gc_interval' => 12,
-                'metrics_limit' => 2000,
-                'idle_cleanup_interval' => 50,
-                'idle_connection_timeout' => 120,
-            ];
-        }
+        $gcInterval = (int)min(20, max(3, 3 + $logGB * 2));
         
-        if ($memoryMB <= 8192) {
-            return [
-                'buffer_pool' => 3072,
-                'request_pool' => 2048,
-                'response_pool' => 2048,
-                'pressure_threshold' => 0.72,
-                'hard_pressure_threshold' => 0.88,
-                'replay_limit' => 1024,
-                'gc_interval' => 15,
-                'metrics_limit' => 2000,
-                'idle_cleanup_interval' => 60,
-                'idle_connection_timeout' => 150,
-            ];
-        }
-
+        $pressure = min(0.80, 0.50 + $logGB * 0.03);
+        $hardPressure = min(0.95, $pressure + 0.15);
+        
+        $replayLimit = (int)min(2048, $bufferPool * 0.25);
+        $metricsLimit = (int)min(5000, 100 * pow(2, $logGB * 0.5));
+        
+        $idleCleanup = (int)min(120, max(10, 10 + $logGB * 10));
+        $idleTimeout = (int)min(300, max(15, 15 + $logGB * 15));
+        
         return [
-            'buffer_pool' => 4096,
-            'request_pool' => 2048,
-            'response_pool' => 2048,
-            'pressure_threshold' => 0.75,
-            'hard_pressure_threshold' => 0.90,
-            'replay_limit' => 1024,
-            'gc_interval' => 15,
-            'metrics_limit' => 2000,
-            'idle_cleanup_interval' => 60,
-            'idle_connection_timeout' => 120,
+            'buffer_pool' => $bufferPool,
+            'request_pool' => $requestPool,
+            'response_pool' => $responsePool,
+            'pressure_threshold' => round($pressure, 2),
+            'hard_pressure_threshold' => round($hardPressure, 2),
+            'replay_limit' => $replayLimit,
+            'gc_interval' => $gcInterval,
+            'metrics_limit' => $metricsLimit,
+            'idle_cleanup_interval' => $idleCleanup,
+            'idle_connection_timeout' => $idleTimeout,
+            'detected_memory_gb' => round($memoryGB, 2),
+            'formula' => 'logarithmic',
         ];
     }
     
