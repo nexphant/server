@@ -3302,12 +3302,15 @@ class HttpServer
         // Detect actual system memory
         $systemMemory = $this->detectSystemMemory();
         
-        // Use the lower of: configured limit or 80% of system RAM
+        // Multi-worker: divide system RAM by worker count
+        $perWorkerMemory = (int)($systemMemory / max(1, $this->workerCount));
+        
+        // Use the lower of: configured limit or 80% of per-worker RAM
         $effectiveLimit = $memoryLimitBytes;
         if ($memoryLimitBytes === -1) {
-            $effectiveLimit = (int)($systemMemory * 0.8);
+            $effectiveLimit = (int)($perWorkerMemory * 0.8);
         } else {
-            $effectiveLimit = min($memoryLimitBytes, (int)($systemMemory * 0.8));
+            $effectiveLimit = min($memoryLimitBytes, (int)($perWorkerMemory * 0.8));
         }
         
         $memoryGB = $effectiveLimit / (1024 * 1024 * 1024);
