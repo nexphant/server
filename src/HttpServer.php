@@ -3299,20 +3299,18 @@ class HttpServer
 
     private function calculateAdaptiveScale(int $memoryLimitBytes): array
     {
+        // Detect actual system memory
+        $systemMemory = $this->detectSystemMemory();
+        
+        // Use the lower of: configured limit or 80% of system RAM
+        $effectiveLimit = $memoryLimitBytes;
         if ($memoryLimitBytes === -1) {
-            return [
-                'buffer_pool' => 4096,
-                'request_pool' => 2048,
-                'response_pool' => 2048,
-                'pressure_threshold' => 0.85,
-                'hard_pressure_threshold' => 0.95,
-                'replay_limit' => 1024,
-                'gc_interval' => 30,
-                'metrics_limit' => 2000,
-            ];
+            $effectiveLimit = (int)($systemMemory * 0.8);
+        } else {
+            $effectiveLimit = min($memoryLimitBytes, (int)($systemMemory * 0.8));
         }
-
-        $memoryMB = $memoryLimitBytes / (1024 * 1024);
+        
+        $memoryMB = $effectiveLimit / (1024 * 1024);
 
         if ($memoryMB <= 128) {
             return [
@@ -3431,5 +3429,37 @@ class HttpServer
             'idle_cleanup_interval' => 60,
             'idle_connection_timeout' => 120,
         ];
+    }
+    
+    private function detectSystemMemory(): int
+    {
+        // Try /proc/meminfo (Linux)
+        if (file_exists('/proc/meminfo')) {
+            $meminfo = file_get_contents('/proc/meminfo');
+            if (preg_match('/MemTotal:\s+(\d+)\s+kB/', $meminfo, $matches)) {
+                return (int)$matches[1] * 1024;
+            }
+        }
+        
+        // Try sysctl (macOS/BSD)
+        $sysctl = @shell_exec('sysctl -n hw.memsize 2>/dev/null');
+        if ($sysctl && is_numeric(trim($sysctl))) {
+            return (int)trim($sysctl);
+        }
+        
+        // Try free command (Linux fallback)
+        $free = @shell_exec('free -b 2>/dev/null | grep Mem | awk \'{print $2}\'');
+        if ($free && is_numeric(trim($free))) {
+            return (int)trim($free);
+        }
+        
+        // Try wmic (Windows)
+        $wmic = @shell_exec('wmic OS get TotalVisibleMemorySize /Value 2>nul');
+        if ($wmic && preg_match('/TotalVisibleMemorySize=(\d+)/', $wmic, $matches)) {
+            return (int)$matches[1] * 1024;
+        }
+        
+        // Fallback: assume 2GB
+        return 2 * 1024 * 1024 * 1024;
     }
 }
