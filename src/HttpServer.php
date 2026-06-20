@@ -3368,6 +3368,8 @@ class HttpServer
             'replay_limit' => 1024,
             'gc_interval' => 15,
             'metrics_limit' => 2000,
+            'idle_cleanup_interval' => 60,
+            'idle_connection_timeout' => 120,
         ];
     }
 }
