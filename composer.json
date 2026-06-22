@@ -5,8 +5,8 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "nexphant\\Server\\": "src/",
-            "nexphant\\": "src/Foundation/"
+            "Nexphant\\Server\\": "src/",
+            "Nexphant\\": "src/Foundation/"
         },
         "files": ["src/helpers.php"]
     },
