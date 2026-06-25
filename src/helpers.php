@@ -64,3 +64,81 @@ if (!function_exists('view')) {
         return \Nexphant\View\view($view, $data);
     }
 }
+
+if (!function_exists('session')) {
+    function session(): \Nexphant\Server\Session\Session
+    {
+        global $__nx_request;
+        return $__nx_request?->getAttribute('session') ?? throw new \RuntimeException('Session not available');
+    }
+}
+
+if (!function_exists('auth')) {
+    function auth(): \Nexphant\Server\Auth\AuthManager
+    {
+        global $__nx_request;
+        return $__nx_request?->getAttribute('auth') ?? throw new \RuntimeException('Auth not available');
+    }
+}
+
+if (!function_exists('auth_check')) {
+    function auth_check(): bool
+    {
+        global $__nx_request;
+        $auth = $__nx_request?->getAttribute('auth');
+        return $auth !== null && $auth->check();
+    }
+}
+
+if (!function_exists('auth_id')) {
+    function auth_id(): int|string|null
+    {
+        return auth()->id();
+    }
+}
+
+if (!function_exists('auth_user')) {
+    function auth_user(): mixed
+    {
+        return auth()->user();
+    }
+}
+
+if (!function_exists('csrf_token')) {
+    function csrf_token(): string
+    {
+        global $__nx_request;
+        $session = $__nx_request?->getAttribute('session') ?? throw new \RuntimeException('Session not available');
+        $csrf = new \Nexphant\Server\Csrf\CsrfManager($session);
+        return $csrf->token();
+    }
+}
+
+if (!function_exists('csrf_field')) {
+    function csrf_field(): string
+    {
+        return '<input type="hidden" name="_token" value="' . htmlspecialchars(csrf_token(), ENT_QUOTES) . '">';
+    }
+}
+
+if (!function_exists('old')) {
+    function old(string $key, mixed $default = null): mixed
+    {
+        return session()->old($key, $default);
+    }
+}
+
+if (!function_exists('cookie')) {
+    function cookie(string $name, string $value = '', int $maxAge = 0): \Nexphant\Server\Cookie\Cookie
+    {
+        return \Nexphant\Server\Cookie\Cookie::make($name, $value, $maxAge);
+    }
+}
+
+if (!function_exists('cookie_jar')) {
+    function cookie_jar(): \Nexphant\Server\Cookie\CookieJar
+    {
+        global $__nx_request;
+        return $__nx_request?->getAttribute('cookies') ?? throw new \RuntimeException('CookieJar not available');
+    }
+}
