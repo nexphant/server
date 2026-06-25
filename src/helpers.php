@@ -135,6 +135,31 @@ if (!function_exists('cookie')) {
     }
 }
 
+if (!function_exists('response')) {
+    function response(): \Nexphant\Server\Http\ResponseBuilder
+    {
+        return new \Nexphant\Server\Http\ResponseBuilder();
+    }
+}
+
+if (!function_exists('redirect')) {
+    function redirect(string $url = '', int $status = 302): mixed
+    {
+        $builder = new \Nexphant\Server\Http\ResponseBuilder();
+        if ($url !== '') {
+            return $builder->redirect($url, $status);
+        }
+        return $builder;
+    }
+}
+
+if (!function_exists('json')) {
+    function json(mixed $data, int $status = 200): \Nexphant\Server\ServerResponse
+    {
+        return (new \Nexphant\Server\Http\ResponseBuilder())->status($status)->json($data);
+    }
+}
+
 if (!function_exists('cookie_jar')) {
     function cookie_jar(): \Nexphant\Server\Cookie\CookieJar
     {
