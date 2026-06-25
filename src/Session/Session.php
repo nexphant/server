@@ -111,10 +111,107 @@ class Session implements SessionInterface
         return array_key_exists($key, $this->data) && !str_starts_with($key, '_meta');
     }
 
+    public function put(string $key, mixed $value): void
+    {
+        $this->set($key, $value);
+    }
+
     public function remove(string $key): void
     {
         unset($this->data[$key]);
         $this->modified = true;
+    }
+
+    public function forget(string $key): void
+    {
+        $this->remove($key);
+    }
+
+    public function invalidate(): string
+    {
+        $this->clear();
+        return $this->regenerate();
+    }
+
+    // -------------------------------------------------------------------------
+    // Flash Session
+    // -------------------------------------------------------------------------
+
+    public function flash(string $key, mixed $value): void
+    {
+        $flash = $this->data['_flash_new'] ?? [];
+        $flash[$key] = $value;
+        $this->data['_flash_new'] = $flash;
+        $this->modified = true;
+    }
+
+    public function now(string $key, mixed $value): void
+    {
+        $flash = $this->data['_flash_now'] ?? [];
+        $flash[$key] = $value;
+        $this->data['_flash_now'] = $flash;
+        $this->modified = true;
+    }
+
+    public function reflash(): void
+    {
+        $current = $this->data['_flash_old'] ?? [];
+        $new     = $this->data['_flash_new'] ?? [];
+        $this->data['_flash_new'] = array_merge($new, $current);
+        $this->modified = true;
+    }
+
+    public function keep(string ...$keys): void
+    {
+        $old = $this->data['_flash_old'] ?? [];
+        $new = $this->data['_flash_new'] ?? [];
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $old)) {
+                $new[$key] = $old[$key];
+            }
+        }
+        $this->data['_flash_new'] = $new;
+        $this->modified = true;
+    }
+
+    public function getFlash(string $key, mixed $default = null): mixed
+    {
+        return ($this->data['_flash_now'] ?? [])[$key]
+            ?? ($this->data['_flash_old'] ?? [])[$key]
+            ?? $default;
+    }
+
+    public function hasFlash(string $key): bool
+    {
+        return array_key_exists($key, $this->data['_flash_now'] ?? [])
+            || array_key_exists($key, $this->data['_flash_old'] ?? []);
+    }
+
+    /**
+     * Age flash data: promote _flash_new → _flash_old, clear _flash_now.
+     * Call this once per request, typically in SessionMiddleware after next().
+     */
+    public function ageFlash(): void
+    {
+        $this->data['_flash_old'] = $this->data['_flash_new'] ?? [];
+        $this->data['_flash_new'] = [];
+        $this->data['_flash_now'] = [];
+        $this->modified = true;
+    }
+
+    // -------------------------------------------------------------------------
+    // Old Input
+    // -------------------------------------------------------------------------
+
+    public function withInput(array $input): void
+    {
+        $this->data['_old_input'] = $input;
+        $this->modified = true;
+    }
+
+    public function old(string $key, mixed $default = null): mixed
+    {
+        return ($this->data['_old_input'] ?? [])[$key] ?? $default;
     }
 
     public function all(): array

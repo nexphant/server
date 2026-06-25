@@ -62,6 +62,10 @@ class SessionManager
                 $config['redis'] ?? throw new \InvalidArgumentException('Session driver "redis" requires a "redis" instance'),
                 $prefix
             ),
+            'file'  => new \Nexphant\Server\Session\Storage\FileSessionStorage(
+                $config['file_path'] ?? '',
+                $config['file_prefix'] ?? 'sess_'
+            ),
             'array' => new ArraySessionStorage(),
             default => new ApcuSessionStorage($prefix),
         };

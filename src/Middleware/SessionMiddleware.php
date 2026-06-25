@@ -58,6 +58,9 @@ class SessionMiddleware
 
         $result = $next($request, $response);
 
+        // Age flash data before saving
+        $session->ageFlash();
+
         // Persist session data
         $session->save();
 
