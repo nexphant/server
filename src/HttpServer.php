@@ -1801,6 +1801,12 @@ class HttpServer
 
     private function handleError(\Throwable $e, ServerResponse $response): void
     {
+        // dd() / ddd() in HTTP context — return dump output, keep worker alive
+        if ($e instanceof \Nexphant\Support\DumpAndDieException) {
+            $response->html($e->getDumpOutput(), 200);
+            return;
+        }
+
         $message = $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
         $this->log('Error: ' . $message);
         error_log('[Nexphant] ' . $message);
