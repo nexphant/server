@@ -1801,12 +1801,15 @@ class HttpServer
 
     private function handleError(\Throwable $e, ServerResponse $response): void
     {
-        $this->log("Error: " . $e->getMessage());
+        $message = $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
+        $this->log('Error: ' . $message);
+        error_log('[Nexphant] ' . $message);
         if ($this->debug) {
             $response->json([
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
             ], 500);
         } else {
             $response->error();

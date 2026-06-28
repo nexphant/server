@@ -8,7 +8,7 @@
             "Nexphant\\Server\\": "src/",
             "Nexphant\\": "src/Foundation/"
         },
-        "files": ["src/helpers.php"]
+        "files": ["src/helpers.php", "src/Foundation/PathHelpers.php"]
     },
     "require": {
         "php": ">=8.1",
